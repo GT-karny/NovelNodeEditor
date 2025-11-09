@@ -7,7 +7,7 @@ import {
   createSceneSnapshot,
   parseSceneSnapshot,
   type ParsedSceneSnapshot,
-} from '../../../utils/sceneData';
+} from '../domain';
 
 export const SCENE_SNAPSHOT_DOWNLOAD_FILENAME = 'novel-node-editor-scene.json';
 export const SCENE_SNAPSHOT_MIME_TYPE = 'application/json';
