@@ -39,12 +39,21 @@ const SceneNode = ({ id, data }: NodeProps<SceneNodeData>) => {
 
   const summaryContent = useMemo(() => data.summary.trim(), [data.summary]);
 
+  const containerClassName = useMemo(() => {
+    const classes = ['scene-node'];
+    if (data.isEditing) {
+      classes.push('scene-node--editing');
+    } else {
+      classes.push('scene-node--view');
+      if (data.isSelected) {
+        classes.push('scene-node--selected');
+      }
+    }
+    return classes.join(' ');
+  }, [data.isEditing, data.isSelected]);
+
   return (
-    <div
-      className={`min-w-[160px] rounded-lg border border-slate-500 bg-slate-700 px-4 py-3 text-slate-100 shadow transition-shadow ${
-        data.isEditing ? 'ring-2 ring-sky-400' : 'hover:shadow-lg'
-      }`}
-    >
+    <div className={containerClassName}>
       <Handle type="target" position={Position.Top} />
       <Handle type="source" position={Position.Bottom} />
       {data.isEditing ? (
