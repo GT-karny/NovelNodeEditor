@@ -1,4 +1,4 @@
-import { type MouseEvent, useCallback, useMemo, useState } from 'react';
+import { type MouseEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import ReactFlow, {
   addEdge,
   applyEdgeChanges,
@@ -38,6 +38,13 @@ function App() {
   const [nodes, setNodes] = useState<Node[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
   const [nodeCount, setNodeCount] = useState(() => getHighestNodeId(initialNodes));
+
+  useEffect(() => {
+    setNodeCount((currentCount) => {
+      const highestId = getHighestNodeId(nodes);
+      return highestId > currentCount ? highestId : currentCount;
+    });
+  }, [nodes]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
