@@ -41,9 +41,12 @@ src/
 │     ├─ SceneEditorLayout.tsx
 │     ├─ SceneFlowProvider.tsx
 │     └─ components/    # シーンエディタ専用 UI (Canvas / Sidebar / Toolbar)
+├─ components/          # 画面部品 (Canvas / Sidebar / Toolbar など)
+├─ features/
+│  └─ scene/
+│     └─ domain/        # シーンノードの正規化・スナップショット・要約整形ロジック
 ├─ hooks/               # 状態管理用のカスタムフック群
-├─ types/               # 型定義 (Scene ノード型など)
-└─ utils/               # シーンデータ整形ロジック
+└─ types/               # 型定義 (Scene ノード型など)
 ```
 
 ### 主要モジュールと責務
@@ -61,14 +64,20 @@ src/
 | `useSceneFlow` | `src/hooks/useSceneFlow.ts` | React Flow のノード・エッジ状態を管理し、追加・削除・接続・編集ハンドラを実装する中核フック。ローカル UI 状態（選択、編集中ノード）もここで管理。 |
 | `useSceneStorage` | `src/hooks/useSceneStorage.ts` | `localStorage` へのスナップショット保存・読み込み、新規リセット処理を担当。 |
 | `useContextMenu` | `src/hooks/useContextMenu.ts` | ノード／キャンバス用のコンテキストメニュー状態と表示位置を制御する。 |
-| `sceneData` ユーティリティ | `src/utils/sceneData.ts` | React Flow ノードデータの同期・正規化、概要表示テキスト整形を提供。 |
+| シーンドメインユーティリティ | `src/features/scene/domain/` | ノードデータの同期・正規化、スナップショット生成／復元、概要整形を提供するドメインロジック群。 |
 | `Scene` 型定義 | `src/types/scene.ts` | ノードデータ構造 (`SceneNodeData`) と `SceneNode` 型の TypeScript 定義。 |
+
+### シーンドメインモジュール構成
+
+- `nodeSync.ts`: `SceneNode` の `data` から UI 専用フィールドを取り除き、タイトルが空の場合は ID から既定値を生成する。React Flow から渡される `Node` を編集用の `SceneNode` に正規化するための `normalizeToSceneNode` もここで提供する。
+- `snapshot.ts`: スナップショットの保存・復元を担当。`zod` で `version`・ノード・エッジ構造を検証し、互換性のないデータを受け取った場合は `null` を返す安全なパーサーを実装する。
+- `summaryFormatter.ts`: シーン概要テキストを 20 文字単位で折り返し、最大 2 行・末尾省略記号付きで表示する関数を提供する。前後の空白は表示前にトリムされる。
 
 ## 状態とデータフロー
 
 - ノードとエッジの配列は `useSceneFlow` 内で `useState` により管理され、React Flow の `onNodesChange` / `onEdgesChange` コールバックを通じて更新されます。
 - サイドバーやノードのインライン編集で入力されたタイトル・概要は、選択中ノード ID を参照しながら `useSceneFlow` が即時に同期します。
-- `useSceneStorage` が `localStorage` に JSON 形式でスナップショットを保存し、読み込み時には `sceneData` ユーティリティで正規化してから `useSceneFlow` に適用します。
+- `useSceneStorage` が `localStorage` に JSON 形式でスナップショットを保存し、読み込み時には `features/scene/domain` のスナップショットモジュールでスキーマ検証と正規化を行ってから `useSceneFlow` に適用します。
 - コンテキストメニューは `useContextMenu` が DOM 座標を React Flow 座標に変換しながら開閉を制御します。
 
 ## ビルド設定と開発フロー

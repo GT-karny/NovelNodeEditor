@@ -2,7 +2,7 @@ import { FormEvent, memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Handle, NodeProps, Position } from 'reactflow';
 
 import type { SceneNodeData } from '../types/scene';
-import { formatSceneSummary } from '../utils/sceneData';
+import { formatSceneSummary } from '../features/scene/domain';
 
 const SceneNode = ({ id, data }: NodeProps<SceneNodeData>) => {
   const [titleInput, setTitleInput] = useState(data.title);
