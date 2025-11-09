@@ -19,12 +19,21 @@ const FlowToolbar = () => {
   };
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const [file] = event.target.files ?? [];
-    if (file) {
-      await handleLoadFromFile(file);
+    const input = event.target;
+    const [file] = input.files ?? [];
+    if (!file) {
+      input.value = '';
+      return;
     }
-    // Allow selecting the same file multiple times by resetting the input.
-    event.target.value = '';
+
+    try {
+      await handleLoadFromFile(file);
+    } catch (error) {
+      console.error('Failed to load scene from file', error);
+    } finally {
+      // Allow selecting the same file multiple times by resetting the input.
+      input.value = '';
+    }
   };
 
   const handleSaveClick = () => {
