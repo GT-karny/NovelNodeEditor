@@ -4,7 +4,7 @@
 
 ## 全体構成
 
-アプリケーションは Vite + React で構築された SPA であり、ノードベースのシーン編集 UI を提供します。主要なデータフローは下図のように、`useSceneFlow` フックを中心に React Flow コンポーネントと UI 部品が相互作用する構造です。
+アプリケーションは Vite + React で構築された SPA であり、ノードベースのシーン編集 UI を提供します。主要なデータフローは下図のように、`SceneFlowProvider` が `useSceneFlow` / `useContextMenu` / `useSceneStorage` を束ねて UI コンポーネントへ状態を供給する構造です。
 
 ```mermaid
 flowchart LR
@@ -14,7 +14,8 @@ flowchart LR
     Sidebar[FlowSidebar]
     Context[FlowContextMenu]
   end
-  Hooks[useSceneFlow / useContextMenu / useSceneStorage]
+  Hooks[SceneFlowProvider
+( useSceneFlow / useContextMenu / useSceneStorage )]
   Storage[(localStorage)]
   ReactFlow[React Flow Graph]
 
@@ -34,7 +35,12 @@ src/
 ├─ App.tsx              # 画面全体を組み立てるルートコンポーネント
 ├─ main.tsx             # React エントリポイント
 ├─ index.css            # Tailwind ベースのスタイル定義
-├─ components/          # 画面部品 (Canvas / Sidebar / Toolbar など)
+├─ components/          # 共通 UI 部品 (コンテキストメニューやノード描画など)
+├─ features/
+│  └─ scene/            # シーンエディタ機能一式
+│     ├─ SceneEditorLayout.tsx
+│     ├─ SceneFlowProvider.tsx
+│     └─ components/    # シーンエディタ専用 UI (Canvas / Sidebar / Toolbar)
 ├─ hooks/               # 状態管理用のカスタムフック群
 ├─ types/               # 型定義 (Scene ノード型など)
 └─ utils/               # シーンデータ整形ロジック
@@ -44,11 +50,13 @@ src/
 
 | モジュール | 位置 | 主な責務 |
 | --- | --- | --- |
-| `App.tsx` | `src/App.tsx` | React Flow プロバイダ配下でエディタ画面を構築し、カスタムフックから提供される状態とハンドラを各コンポーネントへ配線する。 |
-| `FlowCanvas` | `src/components/FlowCanvas.tsx` | React Flow を描画し、ノード・エッジ操作イベントを `useSceneFlow` に委譲する。ミニマップやコントロール UI も提供。 |
-| `FlowSidebar` | `src/components/FlowSidebar.tsx` | 選択中ノードのタイトル・概要編集フォームを表示し、入力値変更を `useSceneFlow` 経由で即時反映させる。 |
+| `App.tsx` | `src/App.tsx` | React Flow プロバイダ配下で `SceneFlowProvider` を組み合わせ、シーンエディタレイアウトを描画する。 |
+| `SceneFlowProvider` | `src/features/scene/SceneFlowProvider.tsx` | シーン編集に必要な状態とハンドラをコンテキストで提供し、`useSceneFlow`・`useContextMenu`・`useSceneStorage` を統合する。 |
+| `SceneEditorLayout` | `src/features/scene/SceneEditorLayout.tsx` | プロバイダから取得した状態でツールバー・キャンバス・サイドバーを配置し、副作用（タイトル入力フォーカスなど）を管理する。 |
+| `FlowCanvas` | `src/features/scene/components/FlowCanvas.tsx` | React Flow を描画し、ノード・エッジ操作イベントをコンテキスト経由で処理する。ミニマップやコントロール UI も提供。 |
+| `FlowSidebar` | `src/features/scene/components/FlowSidebar.tsx` | 選択中ノードのタイトル・概要編集フォームを表示し、入力値変更をコンテキスト経由で即時反映させる。 |
+| `FlowToolbar` | `src/features/scene/components/FlowToolbar.tsx` | 新規作成、保存、読み込み、ノード追加といったコマンドボタンを提供し、ファイル入力の制御も担う。 |
 | `SceneNode` | `src/components/SceneNode.tsx` | 各シーンノードの見た目とインライン編集 UI を担当。選択状態や編集モードに応じたスタイルを切り替える。 |
-| `FlowToolbar` | `src/components/FlowToolbar.tsx` | 新規作成、保存、読み込み、ノード追加といったコマンドボタンを提供。 |
 | `ContextMenu` | `src/components/ContextMenu.tsx` | ノード／キャンバスでのコンテキストメニューを表示し、削除・ノード追加などの操作をトリガーする。 |
 | `useSceneFlow` | `src/hooks/useSceneFlow.ts` | React Flow のノード・エッジ状態を管理し、追加・削除・接続・編集ハンドラを実装する中核フック。ローカル UI 状態（選択、編集中ノード）もここで管理。 |
 | `useSceneStorage` | `src/hooks/useSceneStorage.ts` | `localStorage` へのスナップショット保存・読み込み、新規リセット処理を担当。 |
