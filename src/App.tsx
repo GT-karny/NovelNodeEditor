@@ -15,6 +15,8 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
+import type { SceneNode, SceneNodeData } from './types/scene';
+
 const STORAGE_KEY = 'novel-node-editor-flow';
 
 const getHighestNodeId = (nodesList: Node[]): number =>
@@ -23,19 +25,51 @@ const getHighestNodeId = (nodesList: Node[]): number =>
     return Number.isNaN(parsedId) ? max : Math.max(max, parsedId);
   }, 0);
 
-const initialNodes: Node[] = [
+const syncSceneNodeData = (node: SceneNode): SceneNode => ({
+  ...node,
+  data: {
+    ...node.data,
+    label: node.data.title,
+  },
+});
+
+const syncSceneNodes = (nodesList: SceneNode[]): SceneNode[] =>
+  nodesList.map((node) => syncSceneNodeData(node));
+
+const normalizeToSceneNode = (node: Node): SceneNode => {
+  const rawData = (node.data ?? {}) as Partial<SceneNodeData> & Record<string, unknown>;
+  const titleSource =
+    typeof rawData.title === 'string' && rawData.title.length > 0
+      ? rawData.title
+      : typeof rawData.label === 'string' && rawData.label.length > 0
+        ? rawData.label
+        : `シーン ${node.id}`;
+  const summarySource =
+    typeof rawData.summary === 'string' ? rawData.summary : '';
+
+  return syncSceneNodeData({
+    ...node,
+    data: {
+      ...rawData,
+      title: titleSource,
+      summary: summarySource,
+    },
+  });
+};
+
+const initialNodes: SceneNode[] = syncSceneNodes([
   {
     id: '1',
     position: { x: 250, y: 50 },
-    data: { label: 'はじめのノード' },
+    data: { title: 'はじめのノード', summary: '' },
     type: 'default',
   },
-];
+]);
 
 const initialEdges: Edge[] = [];
 
 function App() {
-  const [nodes, setNodes] = useState<Node[]>(initialNodes);
+  const [nodes, setNodes] = useState<SceneNode[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
   const [nodeCount, setNodeCount] = useState(() => getHighestNodeId(initialNodes));
 
@@ -47,7 +81,8 @@ function App() {
   }, [nodes]);
 
   const onNodesChange = useCallback(
-    (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
+    (changes: NodeChange[]) =>
+      setNodes((nds) => syncSceneNodes(applyNodeChanges<SceneNodeData>(changes, nds))),
     []
   );
 
@@ -67,29 +102,29 @@ function App() {
       const nextIdNumber = count + 1;
       const nextId = `${nextIdNumber}`;
       setNodes((nds) => {
-        const newNode: Node = {
+        const unsyncedNode: SceneNode = {
           id: nextId,
           position: {
             x: 100 + nds.length * 80,
             y: 100 + (nds.length % 4) * 80,
           },
-          data: { label: `シーン ${nextId}` },
+          data: { title: `シーン ${nextId}`, summary: '' },
         };
-        return [...nds, newNode];
+        return [...nds, syncSceneNodeData(unsyncedNode)];
       });
       return nextIdNumber;
     });
   }, []);
 
   const handleNew = useCallback(() => {
-    setNodes(initialNodes);
+    setNodes(syncSceneNodes(initialNodes));
     setEdges(initialEdges);
     setNodeCount(getHighestNodeId(initialNodes));
     localStorage.removeItem(STORAGE_KEY);
   }, []);
 
   const handleSave = useCallback(() => {
-    const snapshot = JSON.stringify({ nodes, edges });
+    const snapshot = JSON.stringify({ nodes: syncSceneNodes(nodes), edges });
     localStorage.setItem(STORAGE_KEY, snapshot);
   }, [nodes, edges]);
 
@@ -97,19 +132,24 @@ function App() {
     const snapshot = localStorage.getItem(STORAGE_KEY);
     if (!snapshot) return;
     try {
-      const parsed: { nodes: Node[]; edges: Edge[] } = JSON.parse(snapshot);
-      setNodes(parsed.nodes);
-      setEdges(parsed.edges);
-      setNodeCount(getHighestNodeId(parsed.nodes));
+      const parsed = JSON.parse(snapshot) as Partial<{ nodes: Node[]; edges: Edge[] }>;
+      const parsedNodes = Array.isArray(parsed.nodes)
+        ? parsed.nodes.map((node) => normalizeToSceneNode(node))
+        : syncSceneNodes(initialNodes);
+      const parsedEdges = Array.isArray(parsed.edges) ? parsed.edges : initialEdges;
+
+      setNodes(parsedNodes);
+      setEdges(parsedEdges);
+      setNodeCount(getHighestNodeId(parsedNodes));
     } catch (error) {
       console.error('Failed to load flow from storage', error);
     }
   }, []);
 
   const onNodeContextMenu = useCallback(
-    (event: MouseEvent, node: Node) => {
+    (event: MouseEvent, node: SceneNode) => {
       event.preventDefault();
-      if (window.confirm(`ノード "${node.data?.label ?? node.id}" を削除しますか？`)) {
+      if (window.confirm(`ノード "${node.data?.title ?? node.id}" を削除しますか？`)) {
         setNodes((nds) => nds.filter((n) => n.id !== node.id));
         setEdges((eds) => eds.filter((edge) => edge.source !== node.id && edge.target !== node.id));
       }
@@ -155,16 +195,16 @@ function App() {
         <div style={{ width: '100%', height: '100%' }}>
           <ReactFlow
             style={{ width: '100%', height: '100%', minHeight: 600 }}
-          fitView
-          proOptions={proOptions}
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeContextMenu={onNodeContextMenu}
-          onEdgeContextMenu={onEdgeContextMenu}
-        >
+            fitView
+            proOptions={proOptions}
+            nodes={syncSceneNodes(nodes)}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeContextMenu={onNodeContextMenu}
+            onEdgeContextMenu={onEdgeContextMenu}
+          >
           <MiniMap pannable zoomable />
           <Controls />
           <Background gap={24} size={2} color="#1f2937" />
