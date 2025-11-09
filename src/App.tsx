@@ -295,6 +295,8 @@ function App() {
             proOptions={proOptions}
             nodes={flowNodes}
             edges={edges}
+            selectionOnDrag
+            panOnDrag={[2]}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
