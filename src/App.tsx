@@ -15,8 +15,11 @@ import FlowSidebar from './components/FlowSidebar';
 import FlowToolbar from './components/FlowToolbar';
 import SceneNodeComponent from './components/SceneNode';
 import useContextMenu from './hooks/useContextMenu';
-import useSceneFlow from './hooks/useSceneFlow';
 import useSceneStorage from './hooks/useSceneStorage';
+import {
+  SceneFlowProvider,
+  useSceneFlowContext,
+} from './features/scene/context/SceneFlowProvider';
 import type { SceneNode, SceneNodeData } from './types/scene';
 import { syncSceneNodes } from './features/scene/domain';
 
@@ -48,7 +51,7 @@ function FlowEditor() {
     beginEditing,
     removeEdge,
     applySceneSnapshot,
-  } = useSceneFlow({ initialNodes, initialEdges });
+  } = useSceneFlowContext();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const nodeTypes = useMemo<NodeTypes>(() => ({ scene: SceneNodeComponent }), []);
   const { screenToFlowPosition } = useReactFlow<SceneNodeData>();
@@ -232,7 +235,9 @@ function FlowEditor() {
 function App() {
   return (
     <ReactFlowProvider>
-      <FlowEditor />
+      <SceneFlowProvider initialNodes={initialNodes} initialEdges={initialEdges}>
+        <FlowEditor />
+      </SceneFlowProvider>
     </ReactFlowProvider>
   );
 }
