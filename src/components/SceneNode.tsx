@@ -43,13 +43,28 @@ const SceneNode = ({ id, data }: NodeProps<SceneNodeData>) => {
       return '';
     }
 
-    const lines = trimmed.split('\n');
-    if (lines.length <= 2) {
-      return trimmed;
+    const MAX_LINE_LENGTH = 20;
+    const MAX_DISPLAY_LINES = 2;
+
+    const wrappedLines: string[] = [];
+    trimmed.split('\n').forEach((line) => {
+      if (line.length === 0) {
+        wrappedLines.push('');
+        return;
+      }
+
+      for (let index = 0; index < line.length; index += MAX_LINE_LENGTH) {
+        wrappedLines.push(line.slice(index, index + MAX_LINE_LENGTH));
+      }
+    });
+
+    if (wrappedLines.length <= MAX_DISPLAY_LINES) {
+      return wrappedLines.join('\n');
     }
 
-    const truncatedLines = lines.slice(0, 2);
-    truncatedLines[1] = `${truncatedLines[1]}…`;
+    const truncatedLines = wrappedLines.slice(0, MAX_DISPLAY_LINES);
+    const lastLineIndex = truncatedLines.length - 1;
+    truncatedLines[lastLineIndex] = `${truncatedLines[lastLineIndex]}…`;
     return truncatedLines.join('\n');
   }, [data.summary]);
 
