@@ -27,6 +27,20 @@ const FlowToolbar = () => {
     event.target.value = '';
   };
 
+  const handleSaveClick = () => {
+    const { blob, filename } = handleSaveToFile();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+
+    anchor.href = url;
+    anchor.download = filename;
+
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <header className="flex flex-wrap items-center gap-2">
       <h1 className="text-lg font-semibold">Novel Node Editor</h1>
@@ -34,7 +48,7 @@ const FlowToolbar = () => {
         <button type="button" onClick={handleNew}>
           新規
         </button>
-        <button type="button" onClick={handleSaveToFile}>
+        <button type="button" onClick={handleSaveClick}>
           保存
         </button>
         <button type="button" onClick={handleLoadClick}>
