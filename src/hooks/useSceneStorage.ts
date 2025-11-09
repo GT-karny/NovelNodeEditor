@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import type { Edge } from 'reactflow';
 
 import type { SceneNode } from '../types/scene';
+import type { SceneSnapshot } from '../types/storage';
 import { createSceneSnapshot, parseSceneSnapshot, syncSceneNodes } from '../utils/sceneData';
 
 const STORAGE_KEY = 'novel-node-editor-flow';
@@ -36,9 +37,15 @@ const useSceneStorage = ({
   }, [applySceneSnapshot, closeContextMenu, initialEdges, initialNodes]);
 
   const handleSave = useCallback(() => {
-    const snapshot = createSceneSnapshot(nodes, edges);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
-  }, [edges, nodes]);
+    try {
+      const snapshot: SceneSnapshot = createSceneSnapshot(nodes, edges);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+      closeContextMenu();
+    } catch (error) {
+      console.error('Failed to save flow to storage', error);
+      window.alert('保存に失敗しました。もう一度お試しください。');
+    }
+  }, [closeContextMenu, edges, nodes]);
 
   const handleLoad = useCallback(() => {
     const snapshot = localStorage.getItem(STORAGE_KEY);
