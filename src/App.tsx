@@ -17,6 +17,12 @@ import 'reactflow/dist/style.css';
 
 const STORAGE_KEY = 'novel-node-editor-flow';
 
+const getHighestNodeId = (nodesList: Node[]): number =>
+  nodesList.reduce((max, node) => {
+    const parsedId = Number.parseInt(node.id, 10);
+    return Number.isNaN(parsedId) ? max : Math.max(max, parsedId);
+  }, 0);
+
 const initialNodes: Node[] = [
   {
     id: '1',
@@ -31,7 +37,7 @@ const initialEdges: Edge[] = [];
 function App() {
   const [nodes, setNodes] = useState<Node[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
-  const [nodeCount, setNodeCount] = useState(initialNodes.length);
+  const [nodeCount, setNodeCount] = useState(() => getHighestNodeId(initialNodes));
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -50,25 +56,28 @@ function App() {
   );
 
   const handleAddNode = useCallback(() => {
-    setNodes((nds) => {
-      const nextId = `${nodeCount + 1}`;
-      const newNode: Node = {
-        id: nextId,
-        position: {
-          x: 100 + nds.length * 80,
-          y: 100 + (nds.length % 4) * 80,
-        },
-        data: { label: `シーン ${nextId}` },
-      };
-      return [...nds, newNode];
+    setNodeCount((count) => {
+      const nextIdNumber = count + 1;
+      const nextId = `${nextIdNumber}`;
+      setNodes((nds) => {
+        const newNode: Node = {
+          id: nextId,
+          position: {
+            x: 100 + nds.length * 80,
+            y: 100 + (nds.length % 4) * 80,
+          },
+          data: { label: `シーン ${nextId}` },
+        };
+        return [...nds, newNode];
+      });
+      return nextIdNumber;
     });
-    setNodeCount((count) => count + 1);
-  }, [nodeCount]);
+  }, []);
 
   const handleNew = useCallback(() => {
     setNodes(initialNodes);
     setEdges(initialEdges);
-    setNodeCount(initialNodes.length);
+    setNodeCount(getHighestNodeId(initialNodes));
     localStorage.removeItem(STORAGE_KEY);
   }, []);
 
@@ -84,7 +93,7 @@ function App() {
       const parsed: { nodes: Node[]; edges: Edge[] } = JSON.parse(snapshot);
       setNodes(parsed.nodes);
       setEdges(parsed.edges);
-      setNodeCount(parsed.nodes.length);
+      setNodeCount(getHighestNodeId(parsed.nodes));
     } catch (error) {
       console.error('Failed to load flow from storage', error);
     }
