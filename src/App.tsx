@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import ReactFlow, {
@@ -87,6 +88,7 @@ function FlowEditor() {
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
   const [nodeCount, setNodeCount] = useState(() => getHighestNodeId(initialNodes));
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<
     | {
         type: 'node';
@@ -102,6 +104,7 @@ function FlowEditor() {
   >(null);
   const nodeTypes = useMemo(() => ({ scene: SceneNodeComponent }), []);
   const { screenToFlowPosition } = useReactFlow<SceneNodeData>();
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setNodeCount((currentCount) => {
@@ -109,6 +112,14 @@ function FlowEditor() {
       return highestId > currentCount ? highestId : currentCount;
     });
   }, [nodes]);
+
+  useEffect(() => {
+    if (!selectedNodeId) return;
+    const exists = nodes.some((node) => node.id === selectedNodeId);
+    if (!exists) {
+      setSelectedNodeId(null);
+    }
+  }, [nodes, selectedNodeId]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) =>
@@ -153,6 +164,7 @@ function FlowEditor() {
     setNodeCount(getHighestNodeId(initialNodes));
     localStorage.removeItem(STORAGE_KEY);
     setEditingNodeId(null);
+    setSelectedNodeId(null);
     setContextMenu(null);
   }, []);
 
@@ -175,6 +187,7 @@ function FlowEditor() {
       setEdges(parsedEdges);
       setNodeCount(getHighestNodeId(parsedNodes));
       setEditingNodeId(null);
+      setSelectedNodeId(null);
       setContextMenu(null);
     } catch (error) {
       console.error('Failed to load flow from storage', error);
@@ -188,6 +201,7 @@ function FlowEditor() {
       setNodes((nds) => nds.filter((n) => n.id !== nodeId));
       setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
       setEditingNodeId((current) => (current === nodeId ? null : current));
+      setSelectedNodeId((current) => (current === nodeId ? null : current));
       closeContextMenu();
     },
     [closeContextMenu]
@@ -231,6 +245,7 @@ function FlowEditor() {
   const onNodeDoubleClick = useCallback(
     (_event: MouseEvent, node: SceneNode) => {
       setEditingNodeId(node.id);
+      setSelectedNodeId(node.id);
       closeContextMenu();
     },
     [closeContextMenu]
@@ -245,6 +260,7 @@ function FlowEditor() {
               data: {
                 ...node.data,
                 title: nextTitle,
+                label: nextTitle,
               },
             }
           : node
@@ -292,6 +308,61 @@ function FlowEditor() {
 
   const proOptions = useMemo(() => ({ hideAttribution: true }), []);
 
+  const selectedNode = useMemo(
+    () => (selectedNodeId ? nodes.find((node) => node.id === selectedNodeId) ?? null : null),
+    [nodes, selectedNodeId]
+  );
+
+  const handleTitleChange = useCallback(
+    (nextTitle: string) => {
+      if (!selectedNodeId) return;
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === selectedNodeId
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  title: nextTitle,
+                  label: nextTitle,
+                },
+              }
+            : node
+        )
+      );
+    },
+    [selectedNodeId]
+  );
+
+  const handleSummaryChange = useCallback(
+    (nextSummary: string) => {
+      if (!selectedNodeId) return;
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === selectedNodeId
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  summary: nextSummary,
+                },
+              }
+            : node
+        )
+      );
+    },
+    [selectedNodeId]
+  );
+
+  useEffect(() => {
+    if (!selectedNode) return undefined;
+    const frame = requestAnimationFrame(() => {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [selectedNode?.id]);
+
   return (
     <div className="flex min-h-screen flex-col gap-4 p-4 text-slate-100">
       <header className="flex flex-wrap items-center gap-2">
@@ -311,39 +382,88 @@ function FlowEditor() {
           </button>
         </div>
       </header>
-      <div
-        className="flex-1 overflow-hidden rounded-lg border border-slate-700 bg-slate-800"
-        style={{ height: '600px' }}
-      >
-        <div style={{ width: '100%', height: '100%' }}>
-          <ReactFlow
-            style={{ width: '100%', height: '100%', minHeight: 600 }}
-            fitView
-            proOptions={proOptions}
-            nodes={flowNodes}
-            edges={edges}
-            selectionOnDrag
-            panOnDrag={[2]}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onNodeContextMenu={onNodeContextMenu}
-            onEdgeContextMenu={onEdgeContextMenu}
-            onNodeDoubleClick={onNodeDoubleClick}
-            nodeTypes={nodeTypes}
-            onPaneClick={closeContextMenu}
-            onPaneContextMenu={onPaneContextMenu}
-          >
-          <MiniMap pannable zoomable />
-          <Controls />
-          <Background gap={24} size={2} color="#1f2937" />
-          <Panel position="top-left">
-            <p className="text-xs text-slate-300">
-              ノードをドラッグで移動し、接続ハンドルをドラッグして線を作成できます。
-            </p>
-          </Panel>
-          </ReactFlow>
+      <div className="flex flex-1 gap-4">
+        <div
+          className="flex-1 overflow-hidden rounded-lg border border-slate-700 bg-slate-800"
+          style={{ height: '600px' }}
+        >
+          <div style={{ width: '100%', height: '100%' }}>
+            <ReactFlow
+              style={{ width: '100%', height: '100%', minHeight: 600 }}
+              fitView
+              proOptions={proOptions}
+              nodes={flowNodes}
+              edges={edges}
+              selectionOnDrag
+              panOnDrag={[2]}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onNodeContextMenu={onNodeContextMenu}
+              onEdgeContextMenu={onEdgeContextMenu}
+              onNodeDoubleClick={onNodeDoubleClick}
+              nodeTypes={nodeTypes}
+              onPaneClick={() => {
+                closeContextMenu();
+                setSelectedNodeId(null);
+              }}
+              onPaneContextMenu={onPaneContextMenu}
+              onSelectionChange={({ nodes: selectedNodes }) => {
+                const primary = selectedNodes[0];
+                setSelectedNodeId(primary ? primary.id : null);
+              }}
+              onNodeClick={(_event, node) => {
+                setSelectedNodeId(node.id);
+                closeContextMenu();
+              }}
+            >
+            <MiniMap pannable zoomable />
+            <Controls />
+            <Background gap={24} size={2} color="#1f2937" />
+            <Panel position="top-left">
+              <p className="text-xs text-slate-300">
+                ノードをドラッグで移動し、接続ハンドルをドラッグして線を作成できます。
+              </p>
+            </Panel>
+            </ReactFlow>
+          </div>
         </div>
+        <aside className="flex w-full basis-1/3 flex-col gap-3 rounded-lg border border-slate-700 bg-slate-900/60 p-4">
+          <h2 className="text-sm font-semibold text-slate-200">シーン編集</h2>
+          {selectedNode ? (
+            <form className="flex flex-1 flex-col gap-4" onSubmit={(event) => event.preventDefault()}>
+              <label className="flex flex-col gap-1 text-xs font-semibold text-slate-300" htmlFor="scene-editor-title">
+                タイトル
+                <input
+                  id="scene-editor-title"
+                  ref={titleInputRef}
+                  className="rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 shadow focus:border-sky-400 focus:outline-none"
+                  value={selectedNode.data.title}
+                  onChange={(event) => handleTitleChange(event.target.value)}
+                  placeholder="シーンのタイトル"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-semibold text-slate-300" htmlFor="scene-editor-summary">
+                概要
+                <textarea
+                  id="scene-editor-summary"
+                  className="min-h-[160px] rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 shadow focus:border-sky-400 focus:outline-none"
+                  value={selectedNode.data.summary}
+                  onChange={(event) => handleSummaryChange(event.target.value)}
+                  placeholder="シーンの概要やメモを入力"
+                />
+              </label>
+              <p className="text-[11px] text-slate-400">
+                入力内容はノードに即時反映されます。
+              </p>
+            </form>
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-sm text-slate-400">
+              <p>編集したいノードを選択してください。</p>
+              <p className="text-xs">選択するとタイトル入力欄に自動でフォーカスします。</p>
+            </div>
+          )}
+        </aside>
       </div>
       {contextMenu?.type === 'node' && selectedContextNode ? (
         <div
