@@ -4,7 +4,7 @@ import type { Edge } from 'reactflow';
 
 import type { SceneNode } from '../types/scene';
 import type { SceneSnapshot } from '../types/storage';
-import { createSceneSnapshot, parseSceneSnapshot } from '../utils/sceneData';
+import { createSceneSnapshot, parseSceneSnapshot } from '../features/scene/domain';
 
 const STORAGE_KEY = 'novel-node-editor-flow';
 

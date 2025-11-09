@@ -18,7 +18,7 @@ import useContextMenu from './hooks/useContextMenu';
 import useSceneFlow from './hooks/useSceneFlow';
 import useSceneStorage from './hooks/useSceneStorage';
 import type { SceneNode, SceneNodeData } from './types/scene';
-import { syncSceneNodes } from './utils/sceneData';
+import { syncSceneNodes } from './features/scene/domain';
 
 const initialNodes: SceneNode[] = syncSceneNodes([
   {

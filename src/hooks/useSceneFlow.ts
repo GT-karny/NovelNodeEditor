@@ -11,7 +11,7 @@ import {
 } from 'reactflow';
 
 import type { SceneNode, SceneNodeData } from '../types/scene';
-import { syncSceneNodeData, syncSceneNodes } from '../utils/sceneData';
+import { syncSceneNodeData, syncSceneNodes } from '../features/scene/domain';
 
 const getHighestNodeId = (nodesList: SceneNode[]): number =>
   nodesList.reduce((max, node) => {
