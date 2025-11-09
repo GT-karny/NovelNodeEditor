@@ -10,7 +10,7 @@ import {
 } from 'reactflow';
 
 import type { SceneNode, SceneNodeData } from '../../../types/scene';
-import { syncSceneNodeData, syncSceneNodes } from '../../../utils/sceneData';
+import { getNextNodeIdValue, syncSceneNodeData, syncSceneNodes } from '../domain';
 
 export interface SceneFlowState {
   nodes: SceneNode[];
@@ -34,14 +34,6 @@ export type SceneFlowAction =
   | { type: 'BEGIN_EDITING'; nodeId: string }
   | { type: 'CANCEL_EDITING' }
   | { type: 'APPLY_SCENE_SNAPSHOT'; nodes: SceneNode[]; edges: Edge[] };
-
-const getHighestNodeId = (nodesList: SceneNode[]): number =>
-  nodesList.reduce((max, node) => {
-    const parsedId = Number.parseInt(node.id, 10);
-    return Number.isNaN(parsedId) ? max : Math.max(max, parsedId);
-  }, 0);
-
-const getNextNodeIdValue = (nodesList: SceneNode[]): number => getHighestNodeId(nodesList) + 1;
 
 const ensureValidNodeReferences = (
   nodes: SceneNode[],
