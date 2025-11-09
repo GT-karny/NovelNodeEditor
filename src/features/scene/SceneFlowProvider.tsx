@@ -1,19 +1,14 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import type { MouseEvent } from 'react';
-import {
-  type Edge,
-  type NodeMouseHandler,
-  type NodeTypes,
-  type OnSelectionChangeFunc,
-  useReactFlow,
-} from 'reactflow';
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { type Edge, type NodeTypes, useReactFlow } from 'reactflow';
 
-import type { CanvasMenuConfig, NodeMenuConfig } from '../../components/ContextMenu';
 import SceneNodeComponent from '../../components/SceneNode';
-import useContextMenu from '../../hooks/useContextMenu';
 import useSceneFlow from '../../hooks/useSceneFlow';
-import useSceneStorage from '../../hooks/useSceneStorage';
 import type { SceneNode, SceneNodeData } from '../../types/scene';
+import useSceneSidebarState from './hooks/useSceneSidebarState';
+import useSceneContextMenu, {
+  type UseSceneContextMenuReturn,
+} from './hooks/useSceneContextMenu';
+import useSceneStorageActions from './hooks/useSceneStorageActions';
 
 interface SceneFlowContextValue {
   nodes: SceneNode[];
@@ -29,13 +24,13 @@ interface SceneFlowContextValue {
   onNodesChange: ReturnType<typeof useSceneFlow>['onNodesChange'];
   onEdgesChange: ReturnType<typeof useSceneFlow>['onEdgesChange'];
   onConnect: ReturnType<typeof useSceneFlow>['onConnect'];
-  onPaneClick: () => void;
-  onPaneContextMenu: (event: MouseEvent) => void;
-  onNodeContextMenu: NodeMouseHandler;
-  onEdgeContextMenu: (event: MouseEvent, edge: Edge) => void;
-  onNodeDoubleClick: NodeMouseHandler;
-  onNodeClick: NodeMouseHandler;
-  onSelectionChange: OnSelectionChangeFunc;
+  onPaneClick: UseSceneContextMenuReturn['onPaneClick'];
+  onPaneContextMenu: UseSceneContextMenuReturn['onPaneContextMenu'];
+  onNodeContextMenu: UseSceneContextMenuReturn['onNodeContextMenu'];
+  onEdgeContextMenu: UseSceneContextMenuReturn['onEdgeContextMenu'];
+  onNodeDoubleClick: UseSceneContextMenuReturn['onNodeDoubleClick'];
+  onNodeClick: UseSceneContextMenuReturn['onNodeClick'];
+  onSelectionChange: UseSceneContextMenuReturn['onSelectionChange'];
   handleAddNode: ReturnType<typeof useSceneFlow>['handleAddNode'];
   handleDeleteNode: ReturnType<typeof useSceneFlow>['handleDeleteNode'];
   removeEdge: ReturnType<typeof useSceneFlow>['removeEdge'];
@@ -43,11 +38,11 @@ interface SceneFlowContextValue {
   handleSummaryChange: ReturnType<typeof useSceneFlow>['handleSummaryChange'];
   selectNode: ReturnType<typeof useSceneFlow>['selectNode'];
   beginEditing: ReturnType<typeof useSceneFlow>['beginEditing'];
-  handleNew: ReturnType<typeof useSceneStorage>['handleNew'];
-  handleSaveToFile: ReturnType<typeof useSceneStorage>['handleSaveToFile'];
-  handleLoadFromFile: ReturnType<typeof useSceneStorage>['handleLoadFromFile'];
-  handleLoadButtonClick: () => void;
-  contextMenuConfig: NodeMenuConfig | CanvasMenuConfig | null;
+  handleNew: ReturnType<typeof useSceneStorageActions>['handleNew'];
+  handleSaveToFile: ReturnType<typeof useSceneStorageActions>['handleSaveToFile'];
+  handleLoadFromFile: ReturnType<typeof useSceneStorageActions>['handleLoadFromFile'];
+  handleLoadButtonClick: UseSceneContextMenuReturn['handleLoadButtonClick'];
+  contextMenuConfig: UseSceneContextMenuReturn['contextMenuConfig'];
 }
 
 const SceneFlowContext = createContext<SceneFlowContextValue | null>(null);
@@ -65,8 +60,7 @@ const initialEdges: Edge[] = [];
 
 const SceneFlowProvider = ({ children }: { children: ReactNode }) => {
   const { screenToFlowPosition } = useReactFlow<SceneNodeData>();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const toggleSidebar = useCallback(() => setIsSidebarOpen((prev) => !prev), []);
+  const { isSidebarOpen, toggleSidebar } = useSceneSidebarState();
 
   const {
     nodes,
@@ -88,113 +82,33 @@ const SceneFlowProvider = ({ children }: { children: ReactNode }) => {
     applySceneSnapshot,
   } = useSceneFlow({ initialNodes, initialEdges });
 
-  const { contextMenu, closeContextMenu, onNodeContextMenu, onPaneContextMenu } = useContextMenu({
+  const {
+    onPaneClick,
+    onPaneContextMenu,
+    onNodeContextMenu,
+    onEdgeContextMenu,
+    onNodeDoubleClick,
+    onNodeClick,
+    onSelectionChange,
+    handleLoadButtonClick,
+    contextMenuConfig,
+  } = useSceneContextMenu({
     screenToFlowPosition,
+    nodes,
+    beginEditing,
+    selectNode,
+    handleAddNode,
+    handleDeleteNode,
+    removeEdge,
   });
 
-  const { handleNew, handleSaveToFile, handleLoadFromFile } = useSceneStorage({
+  const { handleNew, handleSaveToFile, handleLoadFromFile } = useSceneStorageActions({
     nodes,
     edges,
     initialNodes,
     initialEdges,
     applySceneSnapshot,
-    closeContextMenu,
   });
-
-  const handleLoadButtonClick = useCallback(() => {
-    closeContextMenu();
-  }, [closeContextMenu]);
-
-  const handleDeleteNodeWithMenu = useCallback(
-    (nodeId: string) => {
-      handleDeleteNode(nodeId);
-      closeContextMenu();
-    },
-    [closeContextMenu, handleDeleteNode]
-  );
-
-  const onEdgeContextMenu = useCallback(
-    (event: MouseEvent, edge: Edge) => {
-      event.preventDefault();
-      if (window.confirm('この接続線を削除しますか？')) {
-        removeEdge(edge.id);
-      }
-    },
-    [removeEdge]
-  );
-
-  const onNodeDoubleClick = useCallback<NodeMouseHandler>(
-    (_event, node) => {
-      beginEditing(node.id);
-      selectNode(node.id);
-      closeContextMenu();
-    },
-    [beginEditing, closeContextMenu, selectNode]
-  );
-
-  const onPaneClick = useCallback(() => {
-    closeContextMenu();
-    selectNode(null);
-  }, [closeContextMenu, selectNode]);
-
-  const onNodeClick = useCallback<NodeMouseHandler>(
-    (_event, node) => {
-      selectNode(node.id);
-      closeContextMenu();
-    },
-    [closeContextMenu, selectNode]
-  );
-
-  const onSelectionChange = useCallback<OnSelectionChangeFunc>(
-    ({ nodes: selectedNodes }) => {
-      const primary = selectedNodes[0];
-      selectNode(primary ? primary.id : null);
-    },
-    [selectNode]
-  );
-
-  const selectedContextNode = useMemo(
-    () =>
-      contextMenu?.type === 'node'
-        ? nodes.find((node) => node.id === contextMenu.nodeId) ?? null
-        : null,
-    [contextMenu, nodes]
-  );
-
-  const contextMenuConfig = useMemo<NodeMenuConfig | CanvasMenuConfig | null>(() => {
-    if (contextMenu?.type === 'node' && selectedContextNode) {
-      return {
-        type: 'node',
-        position: contextMenu.position,
-        title: selectedContextNode.data.title,
-        onOpen: () => {
-          beginEditing(selectedContextNode.id);
-          closeContextMenu();
-        },
-        onDelete: () => handleDeleteNodeWithMenu(selectedContextNode.id),
-      } satisfies NodeMenuConfig;
-    }
-
-    if (contextMenu?.type === 'canvas') {
-      return {
-        type: 'canvas',
-        position: contextMenu.position,
-        onAddNode: () => {
-          handleAddNode(contextMenu.flowPosition);
-          closeContextMenu();
-        },
-      } satisfies CanvasMenuConfig;
-    }
-
-    return null;
-  }, [
-    beginEditing,
-    closeContextMenu,
-    contextMenu,
-    handleAddNode,
-    handleDeleteNodeWithMenu,
-    selectedContextNode,
-  ]);
 
   const nodeTypes = useMemo<NodeTypes>(() => ({ scene: SceneNodeComponent }), []);
   const proOptions = useMemo(() => ({ hideAttribution: true }), []);
@@ -235,38 +149,38 @@ const SceneFlowProvider = ({ children }: { children: ReactNode }) => {
       contextMenuConfig,
     }),
     [
-      beginEditing,
-      contextMenuConfig,
+      nodes,
       edges,
       flowNodes,
-      handleAddNode,
-      handleDeleteNode,
-      handleLoadButtonClick,
-      handleLoadFromFile,
-      handleNew,
-      handleSaveToFile,
-      handleSummaryChange,
-      handleTitleChange,
-      isSidebarOpen,
-      nodes,
-      onConnect,
-      onEdgesChange,
-      onNodeClick,
-      onNodeContextMenu,
-      onNodeDoubleClick,
-      onNodesChange,
-      onPaneClick,
-      onPaneContextMenu,
-      onSelectionChange,
-      onEdgeContextMenu,
-      proOptions,
-      removeEdge,
       selectedNode,
       selectedNodeId,
       editingNodeId,
-      selectNode,
+      isSidebarOpen,
       toggleSidebar,
       nodeTypes,
+      proOptions,
+      onNodesChange,
+      onEdgesChange,
+      onConnect,
+      onPaneClick,
+      onPaneContextMenu,
+      onNodeContextMenu,
+      onEdgeContextMenu,
+      onNodeDoubleClick,
+      onNodeClick,
+      onSelectionChange,
+      handleAddNode,
+      handleDeleteNode,
+      removeEdge,
+      handleTitleChange,
+      handleSummaryChange,
+      selectNode,
+      beginEditing,
+      handleNew,
+      handleSaveToFile,
+      handleLoadFromFile,
+      handleLoadButtonClick,
+      contextMenuConfig,
     ]
   );
 
