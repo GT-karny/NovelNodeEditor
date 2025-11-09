@@ -37,7 +37,37 @@ const SceneNode = ({ id, data }: NodeProps<SceneNodeData>) => {
     data.onCancel?.();
   };
 
-  const summaryContent = useMemo(() => data.summary.trim(), [data.summary]);
+  const summaryContent = useMemo(() => {
+    const trimmed = data.summary.trim();
+    if (trimmed.length === 0) {
+      return '';
+    }
+
+    const MAX_LINE_LENGTH = 20;
+    const MAX_DISPLAY_LINES = 2;
+
+    const wrappedLines: string[] = [];
+    trimmed.split('\n').forEach((line) => {
+      if (line.length === 0) {
+        wrappedLines.push('');
+        return;
+      }
+
+      const characters = Array.from(line);
+      for (let index = 0; index < characters.length; index += MAX_LINE_LENGTH) {
+        wrappedLines.push(characters.slice(index, index + MAX_LINE_LENGTH).join(''));
+      }
+    });
+
+    if (wrappedLines.length <= MAX_DISPLAY_LINES) {
+      return wrappedLines.join('\n');
+    }
+
+    const truncatedLines = wrappedLines.slice(0, MAX_DISPLAY_LINES);
+    const lastLineIndex = truncatedLines.length - 1;
+    truncatedLines[lastLineIndex] = `${truncatedLines[lastLineIndex]}…`;
+    return truncatedLines.join('\n');
+  }, [data.summary]);
 
   const containerClassName = useMemo(() => {
     const classes = ['scene-node'];
@@ -89,7 +119,7 @@ const SceneNode = ({ id, data }: NodeProps<SceneNodeData>) => {
         <div className="flex flex-col gap-1">
           <h3 className="text-sm font-semibold">{data.title}</h3>
           {summaryContent.length > 0 ? (
-            <p className="text-xs text-slate-300">{summaryContent}</p>
+            <p className="whitespace-pre-line text-xs text-slate-300">{summaryContent}</p>
           ) : (
             <p className="text-[11px] italic text-slate-400">概要は未設定です</p>
           )}
