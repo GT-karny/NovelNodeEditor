@@ -59,12 +59,55 @@ function FlowEditor() {
     initialNodes,
     initialEdges,
     applySceneSnapshot,
-    closeContextMenu,
   });
+
+  const handleNewScene = useCallback(() => {
+    handleNew();
+    closeContextMenu();
+  }, [closeContextMenu, handleNew]);
+
+  const handleSaveScene = useCallback(() => {
+    try {
+      const { blob, filename } = handleSaveToFile();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (error) {
+      console.error('Failed to prepare snapshot download.', error);
+    } finally {
+      closeContextMenu();
+    }
+  }, [closeContextMenu, handleSaveToFile]);
 
   const handleLoadButtonClick = useCallback(() => {
     closeContextMenu();
   }, [closeContextMenu]);
+
+  const handleFileSelected = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const input = event.target;
+      const [file] = input.files ?? [];
+
+      if (!file) {
+        return;
+      }
+
+      try {
+        await handleLoadFromFile(file);
+      } catch (error) {
+        console.error('Failed to load scene snapshot from file.', error);
+      } finally {
+        input.value = '';
+        closeContextMenu();
+      }
+    },
+    [closeContextMenu, handleLoadFromFile],
+  );
 
   const handleDeleteNodeWithMenu = useCallback(
     (nodeId: string) => {
@@ -185,10 +228,10 @@ function FlowEditor() {
   return (
     <div className="flex min-h-screen flex-col gap-4 p-4 text-slate-100">
       <FlowToolbar
-        onNew={handleNew}
-        onSave={handleSaveToFile}
+        onNew={handleNewScene}
+        onSave={handleSaveScene}
         onLoad={handleLoadButtonClick}
-        onFileSelected={handleLoadFromFile}
+        onFileSelected={handleFileSelected}
         fileInputRef={fileInputRef}
         onAddNode={() => handleAddNode()}
       />
