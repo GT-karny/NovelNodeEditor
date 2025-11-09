@@ -102,6 +102,7 @@ function FlowEditor() {
       }
     | null
   >(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const nodeTypes = useMemo(() => ({ scene: SceneNodeComponent }), []);
   const { screenToFlowPosition } = useReactFlow<SceneNodeData>();
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -356,13 +357,13 @@ function FlowEditor() {
   );
 
   useEffect(() => {
-    if (!selectedNode) return undefined;
+    if (!selectedNode || !isSidebarOpen) return undefined;
     const frame = requestAnimationFrame(() => {
       titleInputRef.current?.focus();
       titleInputRef.current?.select();
     });
     return () => cancelAnimationFrame(frame);
-  }, [selectedNode?.id]);
+  }, [selectedNode?.id, isSidebarOpen]);
 
   return (
     <div className="flex min-h-screen flex-col gap-4 p-4 text-slate-100">
@@ -426,10 +427,27 @@ function FlowEditor() {
                 ノードをドラッグで移動し、接続ハンドルをドラッグして線を作成できます。
               </p>
             </Panel>
+            <Panel position="top-right">
+              <button
+                type="button"
+                className="rounded border border-slate-600 bg-slate-800/80 p-2 text-xs text-slate-200 shadow transition hover:bg-slate-700"
+                onClick={() => setIsSidebarOpen((v) => !v)}
+                aria-label={isSidebarOpen ? 'サイドパネルを閉じる' : 'サイドパネルを開く'}
+                title={isSidebarOpen ? 'サイドパネルを閉じる' : 'サイドパネルを開く'}
+              >
+                {isSidebarOpen ? '➡' : '⬅'}
+              </button>
+            </Panel>
             </ReactFlow>
           </div>
         </div>
-        <aside className="flex w-full basis-1/3 flex-col gap-3 rounded-lg border border-slate-700 bg-slate-900/60 p-4">
+        <aside
+          className={`flex min-w-0 flex-col gap-3 rounded-lg border border-slate-700 bg-slate-900/60 p-4 transition-[flex-basis,width,opacity,padding] duration-300 ease-in-out ${
+            isSidebarOpen
+              ? 'w-full basis-1/3 opacity-100'
+              : 'w-0 basis-0 overflow-hidden p-0 opacity-0 pointer-events-none'
+          }`}
+        >
           <h2 className="text-sm font-semibold text-slate-200">シーン編集</h2>
           {selectedNode ? (
             <form className="flex flex-1 flex-col gap-4" onSubmit={(event) => event.preventDefault()}>
