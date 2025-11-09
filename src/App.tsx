@@ -1,21 +1,24 @@
 import { type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import ReactFlow, {
-  Background,
-  Controls,
+import {
   Edge,
-  MiniMap,
-  Panel,
   ReactFlowProvider,
   type Node,
+  type NodeMouseHandler,
+  type NodeTypes,
+  type OnSelectionChangeFunc,
   type XYPosition,
   useReactFlow,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import type { SceneNode, SceneNodeData } from './types/scene';
+import FlowCanvas from './components/FlowCanvas';
+import FlowContextMenu from './components/ContextMenu';
+import FlowSidebar from './components/FlowSidebar';
+import FlowToolbar from './components/FlowToolbar';
 import SceneNodeComponent from './components/SceneNode';
-import { normalizeToSceneNode, syncSceneNodes } from './utils/sceneData';
 import useSceneFlow from './hooks/useSceneFlow';
+import type { SceneNode, SceneNodeData } from './types/scene';
+import { normalizeToSceneNode, syncSceneNodes } from './utils/sceneData';
 
 const STORAGE_KEY = 'novel-node-editor-flow';
 
@@ -62,7 +65,7 @@ function FlowEditor() {
     | null
   >(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const nodeTypes = useMemo(() => ({ scene: SceneNodeComponent }), []);
+  const nodeTypes = useMemo<NodeTypes>(() => ({ scene: SceneNodeComponent }), []);
   const { screenToFlowPosition } = useReactFlow<SceneNodeData>();
   const titleInputRef = useRef<HTMLInputElement>(null);
 
@@ -192,169 +195,98 @@ function FlowEditor() {
     return () => cancelAnimationFrame(frame);
   }, [selectedNode?.id, isSidebarOpen]);
 
+  const handlePaneClick = useCallback(() => {
+    closeContextMenu();
+    selectNode(null);
+  }, [closeContextMenu, selectNode]);
+
+  const handleNodeClick = useCallback<NodeMouseHandler>(
+    (_event, node) => {
+      selectNode(node.id);
+      closeContextMenu();
+    },
+    [closeContextMenu, selectNode]
+  );
+
+  const handleSelectionChange = useCallback<OnSelectionChangeFunc>(
+    ({ nodes: selectedNodes }) => {
+      const primary = selectedNodes[0];
+      selectNode(primary ? primary.id : null);
+    },
+    [selectNode]
+  );
+
+  const contextMenuConfig = useMemo(() => {
+    if (contextMenu?.type === 'node' && selectedContextNode) {
+      return {
+        type: 'node' as const,
+        position: contextMenu.position,
+        title: selectedContextNode.data.title,
+        onOpen: () => {
+          beginEditing(selectedContextNode.id);
+          closeContextMenu();
+        },
+        onDelete: () => handleDeleteNodeWithMenu(selectedContextNode.id),
+      };
+    }
+
+    if (contextMenu?.type === 'canvas') {
+      return {
+        type: 'canvas' as const,
+        position: contextMenu.position,
+        onAddNode: () => {
+          handleAddNode(contextMenu.flowPosition);
+          closeContextMenu();
+        },
+      };
+    }
+
+    return null;
+  }, [
+    beginEditing,
+    closeContextMenu,
+    contextMenu,
+    handleAddNode,
+    handleDeleteNodeWithMenu,
+    selectedContextNode,
+  ]);
+
   return (
     <div className="flex min-h-screen flex-col gap-4 p-4 text-slate-100">
-      <header className="flex flex-wrap items-center gap-2">
-        <h1 className="text-lg font-semibold">Novel Node Editor</h1>
-        <div className="ml-auto flex flex-wrap gap-2">
-          <button type="button" onClick={handleNew}>
-            新規
-          </button>
-          <button type="button" onClick={handleSave}>
-            保存
-          </button>
-          <button type="button" onClick={handleLoad}>
-            読み込み
-          </button>
-          <button type="button" onClick={() => handleAddNode()}>
-            ノード追加
-          </button>
-        </div>
-      </header>
+      <FlowToolbar
+        onNew={handleNew}
+        onSave={handleSave}
+        onLoad={handleLoad}
+        onAddNode={() => handleAddNode()}
+      />
       <div className="flex flex-1 gap-4">
-        <div
-          className="flex-1 overflow-hidden rounded-lg border border-slate-700 bg-slate-800"
-          style={{ height: '600px' }}
-        >
-          <div style={{ width: '100%', height: '100%' }}>
-            <ReactFlow
-              style={{ width: '100%', height: '100%', minHeight: 600 }}
-              fitView
-              proOptions={proOptions}
-              nodes={flowNodes}
-              edges={edges}
-              selectionOnDrag
-              panOnDrag={[2]}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onNodeContextMenu={onNodeContextMenu}
-              onEdgeContextMenu={onEdgeContextMenu}
-              onNodeDoubleClick={onNodeDoubleClick}
-              nodeTypes={nodeTypes}
-              onPaneClick={() => {
-                closeContextMenu();
-                selectNode(null);
-              }}
-              onPaneContextMenu={onPaneContextMenu}
-              onSelectionChange={({ nodes: selectedNodes }) => {
-                const primary = selectedNodes[0];
-                selectNode(primary ? primary.id : null);
-              }}
-              onNodeClick={(_event, node) => {
-                selectNode(node.id);
-                closeContextMenu();
-              }}
-            >
-            <MiniMap pannable zoomable />
-            <Controls />
-            <Background gap={24} size={2} color="#1f2937" />
-            <Panel position="top-left">
-              <p className="text-xs text-slate-300">
-                ノードをドラッグで移動し、接続ハンドルをドラッグして線を作成できます。
-              </p>
-            </Panel>
-            <Panel position="top-right">
-              <button
-                type="button"
-                className="rounded border border-slate-600 bg-slate-800/80 p-2 text-xs text-slate-200 shadow transition hover:bg-slate-700"
-                onClick={() => setIsSidebarOpen((v) => !v)}
-                aria-label={isSidebarOpen ? 'サイドパネルを閉じる' : 'サイドパネルを開く'}
-                title={isSidebarOpen ? 'サイドパネルを閉じる' : 'サイドパネルを開く'}
-              >
-                {isSidebarOpen ? '➡' : '⬅'}
-              </button>
-            </Panel>
-            </ReactFlow>
-          </div>
-        </div>
-        <aside
-          className={`flex min-w-0 flex-col gap-3 rounded-lg border border-slate-700 bg-slate-900/60 p-4 transition-[flex-basis,width,opacity,padding] duration-300 ease-in-out ${
-            isSidebarOpen
-              ? 'w-full basis-1/3 opacity-100'
-              : 'w-0 basis-0 overflow-hidden p-0 opacity-0 pointer-events-none'
-          }`}
-        >
-          <h2 className="text-sm font-semibold text-slate-200">シーン編集</h2>
-          {selectedNode ? (
-            <form className="flex flex-1 flex-col gap-4" onSubmit={(event) => event.preventDefault()}>
-              <label className="flex flex-col gap-1 text-xs font-semibold text-slate-300" htmlFor="scene-editor-title">
-                タイトル
-                <input
-                  id="scene-editor-title"
-                  ref={titleInputRef}
-                  className="rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 shadow focus:border-sky-400 focus:outline-none"
-                  value={selectedNode.data.title}
-                  onChange={(event) => handleTitleInputChange(event.target.value)}
-                  placeholder="シーンのタイトル"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-xs font-semibold text-slate-300" htmlFor="scene-editor-summary">
-                概要
-                <textarea
-                  id="scene-editor-summary"
-                  className="min-h-[160px] rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 shadow focus:border-sky-400 focus:outline-none"
-                  value={selectedNode.data.summary}
-                  onChange={(event) => handleSummaryInputChange(event.target.value)}
-                  placeholder="シーンの概要やメモを入力"
-                />
-              </label>
-              <p className="text-[11px] text-slate-400">
-                入力内容はノードに即時反映されます。
-              </p>
-            </form>
-          ) : (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-sm text-slate-400">
-              <p>編集したいノードを選択してください。</p>
-              <p className="text-xs">選択するとタイトル入力欄に自動でフォーカスします。</p>
-            </div>
-          )}
-        </aside>
+        <FlowCanvas
+          proOptions={proOptions}
+          nodes={flowNodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onPaneClick={handlePaneClick}
+          onPaneContextMenu={onPaneContextMenu}
+          onNodeContextMenu={onNodeContextMenu}
+          onEdgeContextMenu={onEdgeContextMenu}
+          onNodeDoubleClick={onNodeDoubleClick}
+          onNodeClick={handleNodeClick}
+          onSelectionChange={handleSelectionChange}
+          isSidebarOpen={isSidebarOpen}
+          onToggleSidebar={() => setIsSidebarOpen((value) => !value)}
+        />
+        <FlowSidebar
+          isSidebarOpen={isSidebarOpen}
+          selectedNode={selectedNode}
+          titleInputRef={titleInputRef}
+          onTitleChange={handleTitleInputChange}
+          onSummaryChange={handleSummaryInputChange}
+        />
       </div>
-      {contextMenu?.type === 'node' && selectedContextNode ? (
-        <div
-          className="fixed z-50 min-w-[160px] rounded border border-slate-600 bg-slate-800 py-2 text-sm text-slate-100 shadow-xl"
-          style={{ top: contextMenu.position.y, left: contextMenu.position.x }}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div className="px-4 pb-2 text-xs text-slate-400">{selectedContextNode.data.title}</div>
-          <button
-            type="button"
-            className="block w-full px-4 py-1 text-left hover:bg-slate-700"
-            onClick={() => {
-              beginEditing(selectedContextNode.id);
-              closeContextMenu();
-            }}
-          >
-            シーン内容
-          </button>
-          <button
-            type="button"
-            className="block w-full px-4 py-1 text-left text-rose-300 hover:bg-rose-900/50"
-            onClick={() => handleDeleteNodeWithMenu(selectedContextNode.id)}
-          >
-            削除
-          </button>
-        </div>
-      ) : null}
-      {contextMenu?.type === 'canvas' ? (
-        <div
-          className="fixed z-50 min-w-[160px] rounded border border-slate-600 bg-slate-800 py-2 text-sm text-slate-100 shadow-xl"
-          style={{ top: contextMenu.position.y, left: contextMenu.position.x }}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <button
-            type="button"
-            className="block w-full px-4 py-1 text-left hover:bg-slate-700"
-            onClick={() => {
-              handleAddNode(contextMenu.flowPosition);
-              closeContextMenu();
-            }}
-          >
-            ノードを追加
-          </button>
-        </div>
-      ) : null}
+      <FlowContextMenu menu={contextMenuConfig} />
     </div>
   );
 }
