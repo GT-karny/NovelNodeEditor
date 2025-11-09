@@ -37,7 +37,7 @@ const getHighestNodeId = (nodesList: Node[]): number =>
   }, 0);
 
 const syncSceneNodeData = (node: SceneNode): SceneNode => {
-  const { onSubmit, onCancel, isEditing, ...restData } = node.data ?? {};
+  const { onSubmit, onCancel, isEditing, isSelected, ...restData } = node.data ?? {};
   return {
     ...node,
     data: {
@@ -281,11 +281,12 @@ function FlowEditor() {
       data: {
         ...node.data,
         isEditing: node.id === editingNodeId,
+        isSelected: node.id === selectedNodeId,
         onSubmit: handleSubmitTitle,
         onCancel: handleCancelEdit,
       },
     }));
-  }, [nodes, editingNodeId, handleSubmitTitle, handleCancelEdit]);
+  }, [nodes, editingNodeId, selectedNodeId, handleSubmitTitle, handleCancelEdit]);
 
   useEffect(() => {
     if (!contextMenu) return undefined;

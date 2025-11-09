@@ -5,6 +5,7 @@ export interface SceneNodeData {
   summary: string;
   label?: string;
   isEditing?: boolean;
+  isSelected?: boolean;
   onSubmit?: (nodeId: string, nextTitle: string) => void;
   onCancel?: () => void;
 }
