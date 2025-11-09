@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Edge } from 'reactflow';
 
 import type { SceneNode } from '../../../types/scene';
-import { createSceneSnapshot } from '../../../utils/sceneData';
+import { createSceneSnapshot } from '../domain';
 import {
   SceneSnapshotInvalidFormatError,
   SceneSnapshotVersionMismatchError,
