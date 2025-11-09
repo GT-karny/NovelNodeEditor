@@ -37,7 +37,21 @@ const SceneNode = ({ id, data }: NodeProps<SceneNodeData>) => {
     data.onCancel?.();
   };
 
-  const summaryContent = useMemo(() => data.summary.trim(), [data.summary]);
+  const summaryContent = useMemo(() => {
+    const trimmed = data.summary.trim();
+    if (trimmed.length === 0) {
+      return '';
+    }
+
+    const lines = trimmed.split('\n');
+    if (lines.length <= 2) {
+      return trimmed;
+    }
+
+    const truncatedLines = lines.slice(0, 2);
+    truncatedLines[1] = `${truncatedLines[1]}…`;
+    return truncatedLines.join('\n');
+  }, [data.summary]);
 
   const containerClassName = useMemo(() => {
     const classes = ['scene-node'];
@@ -89,7 +103,7 @@ const SceneNode = ({ id, data }: NodeProps<SceneNodeData>) => {
         <div className="flex flex-col gap-1">
           <h3 className="text-sm font-semibold">{data.title}</h3>
           {summaryContent.length > 0 ? (
-            <p className="text-xs text-slate-300">{summaryContent}</p>
+            <p className="whitespace-pre-line text-xs text-slate-300">{summaryContent}</p>
           ) : (
             <p className="text-[11px] italic text-slate-400">概要は未設定です</p>
           )}
