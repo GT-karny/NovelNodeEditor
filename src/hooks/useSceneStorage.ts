@@ -4,6 +4,7 @@ import type { Edge } from 'reactflow';
 import type { SceneNode } from '../types/scene';
 import type { SceneSnapshot } from '../types/storage';
 import { createSceneSnapshot, parseSceneSnapshot, syncSceneNodes } from '../utils/sceneData';
+import type { SceneSnapshot } from '../types/storage';
 
 const STORAGE_KEY = 'novel-node-editor-flow';
 
@@ -48,19 +49,34 @@ const useSceneStorage = ({
   }, [closeContextMenu, edges, nodes]);
 
   const handleLoad = useCallback(() => {
-    const snapshot = localStorage.getItem(STORAGE_KEY);
-    if (!snapshot) return;
+    const serializedSnapshot = localStorage.getItem(STORAGE_KEY);
+
+    if (!serializedSnapshot) {
+      console.info('No saved scene snapshot found in storage.');
+      return;
+    }
 
     try {
-      const parsed = parseSceneSnapshot(JSON.parse(snapshot));
-      if (parsed) {
-        applySceneSnapshot(parsed.nodes, parsed.edges);
-      } else {
+      const rawSnapshot = JSON.parse(serializedSnapshot) as SceneSnapshot;
+      const parsedSnapshot = parseSceneSnapshot(rawSnapshot);
+
+      if (!parsedSnapshot) {
+        console.warn('Stored scene snapshot is invalid or incompatible. Resetting to initial state.');
+        if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+          window.alert('保存データの形式が古いか壊れています。初期状態に戻しました。');
+        }
         applySceneSnapshot(syncSceneNodes(initialNodes), initialEdges);
+        closeContextMenu();
+        return;
       }
+
+      applySceneSnapshot(parsedSnapshot.nodes, parsedSnapshot.edges);
       closeContextMenu();
     } catch (error) {
       console.error('Failed to load flow from storage', error);
+      if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+        window.alert('保存データの読み込み中にエラーが発生しました。コンソールを確認してください。');
+      }
     }
   }, [applySceneSnapshot, closeContextMenu, initialEdges, initialNodes]);
 
