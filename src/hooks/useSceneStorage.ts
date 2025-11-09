@@ -1,12 +1,18 @@
 import { useCallback } from 'react';
+import type { ChangeEvent } from 'react';
 import type { Edge } from 'reactflow';
 
 import type { SceneNode } from '../types/scene';
 import type { SceneSnapshot } from '../types/storage';
-import { createSceneSnapshot, parseSceneSnapshot, syncSceneNodes } from '../utils/sceneData';
-import type { SceneSnapshot } from '../types/storage';
+import { createSceneSnapshot, parseSceneSnapshot } from '../utils/sceneData';
 
 const STORAGE_KEY = 'novel-node-editor-flow';
+
+const safeAlert = (message: string) => {
+  if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+    window.alert(message);
+  }
+};
 
 interface UseSceneStorageParams {
   nodes: SceneNode[];
@@ -19,8 +25,8 @@ interface UseSceneStorageParams {
 
 interface UseSceneStorageReturn {
   handleNew: () => void;
-  handleSave: () => void;
-  handleLoad: () => void;
+  handleSaveToFile: () => void;
+  handleLoadFromFile: (event: ChangeEvent<HTMLInputElement>) => void;
 }
 
 const useSceneStorage = ({
@@ -37,50 +43,77 @@ const useSceneStorage = ({
     closeContextMenu();
   }, [applySceneSnapshot, closeContextMenu, initialEdges, initialNodes]);
 
-  const handleSave = useCallback(() => {
+  const handleSaveToFile = useCallback(() => {
     try {
       const snapshot: SceneSnapshot = createSceneSnapshot(nodes, edges);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+      const serializedSnapshot = JSON.stringify(snapshot, null, 2);
+      const blob = new Blob([serializedSnapshot], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'novel-node-editor-scene.json';
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      setTimeout(() => URL.revokeObjectURL(url), 0);
       closeContextMenu();
     } catch (error) {
-      console.error('Failed to save flow to storage', error);
-      window.alert('保存に失敗しました。もう一度お試しください。');
+      console.error('Failed to save flow to file', error);
+      safeAlert('保存に失敗しました。もう一度お試しください。');
     }
   }, [closeContextMenu, edges, nodes]);
 
-  const handleLoad = useCallback(() => {
-    const serializedSnapshot = localStorage.getItem(STORAGE_KEY);
+  const handleLoadFromFile = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const input = event.target;
+      const [file] = input.files ?? [];
 
-    if (!serializedSnapshot) {
-      console.info('No saved scene snapshot found in storage.');
-      return;
-    }
-
-    try {
-      const rawSnapshot = JSON.parse(serializedSnapshot) as SceneSnapshot;
-      const parsedSnapshot = parseSceneSnapshot(rawSnapshot);
-
-      if (!parsedSnapshot) {
-        console.warn('Stored scene snapshot is invalid or incompatible. Resetting to initial state.');
-        if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-          window.alert('保存データの形式が古いか壊れています。初期状態に戻しました。');
-        }
-        applySceneSnapshot(syncSceneNodes(initialNodes), initialEdges);
-        closeContextMenu();
+      if (!file) {
         return;
       }
 
-      applySceneSnapshot(parsedSnapshot.nodes, parsedSnapshot.edges);
-      closeContextMenu();
-    } catch (error) {
-      console.error('Failed to load flow from storage', error);
-      if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-        window.alert('保存データの読み込み中にエラーが発生しました。コンソールを確認してください。');
-      }
-    }
-  }, [applySceneSnapshot, closeContextMenu, initialEdges, initialNodes]);
+      const reader = new FileReader();
 
-  return { handleNew, handleSave, handleLoad };
+      reader.onload = () => {
+        try {
+          const text = reader.result;
+
+          if (typeof text !== 'string') {
+            throw new Error('Unexpected file reader result.');
+          }
+
+          const rawSnapshot = JSON.parse(text) as SceneSnapshot;
+          const parsedSnapshot = parseSceneSnapshot(rawSnapshot);
+
+          if (!parsedSnapshot) {
+            console.warn('Loaded scene snapshot is invalid or incompatible.');
+            safeAlert('保存データの形式が古いか壊れています。ファイルを確認してください。');
+            return;
+          }
+
+          applySceneSnapshot(parsedSnapshot.nodes, parsedSnapshot.edges);
+        } catch (error) {
+          console.error('Failed to load flow from file', error);
+          safeAlert('保存データの読み込み中にエラーが発生しました。コンソールを確認してください。');
+        } finally {
+          input.value = '';
+          closeContextMenu();
+        }
+      };
+
+      reader.onerror = () => {
+        console.error('Failed to read file', reader.error);
+        safeAlert('ファイルの読み込み中にエラーが発生しました。別のファイルをお試しください。');
+        input.value = '';
+        closeContextMenu();
+      };
+
+      reader.readAsText(file);
+    },
+    [applySceneSnapshot, closeContextMenu]
+  );
+
+  return { handleNew, handleSaveToFile, handleLoadFromFile };
 };
 
 export default useSceneStorage;

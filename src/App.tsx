@@ -53,11 +53,12 @@ function FlowEditor() {
   const nodeTypes = useMemo<NodeTypes>(() => ({ scene: SceneNodeComponent }), []);
   const { screenToFlowPosition } = useReactFlow<SceneNodeData>();
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { contextMenu, closeContextMenu, onNodeContextMenu, onPaneContextMenu } = useContextMenu({
     screenToFlowPosition,
   });
-  const { handleNew, handleSave, handleLoad } = useSceneStorage({
+  const { handleNew, handleSaveToFile, handleLoadFromFile } = useSceneStorage({
     nodes,
     edges,
     initialNodes,
@@ -65,6 +66,10 @@ function FlowEditor() {
     applySceneSnapshot,
     closeContextMenu,
   });
+
+  const handleLoadButtonClick = useCallback(() => {
+    closeContextMenu();
+  }, [closeContextMenu]);
 
   const handleDeleteNodeWithMenu = useCallback(
     (nodeId: string) => {
@@ -186,8 +191,10 @@ function FlowEditor() {
     <div className="flex min-h-screen flex-col gap-4 p-4 text-slate-100">
       <FlowToolbar
         onNew={handleNew}
-        onSave={handleSave}
-        onLoad={handleLoad}
+        onSave={handleSaveToFile}
+        onLoad={handleLoadButtonClick}
+        onFileSelected={handleLoadFromFile}
+        fileInputRef={fileInputRef}
         onAddNode={() => handleAddNode()}
       />
       <div className="flex flex-1 gap-4">
