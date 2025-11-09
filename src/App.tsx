@@ -18,6 +18,9 @@ import ReactFlow, {
   Node,
   NodeChange,
   Panel,
+  ReactFlowProvider,
+  type XYPosition,
+  useReactFlow,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
@@ -79,19 +82,26 @@ const initialNodes: SceneNode[] = syncSceneNodes([
 
 const initialEdges: Edge[] = [];
 
-function App() {
+function FlowEditor() {
   const [nodes, setNodes] = useState<SceneNode[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
   const [nodeCount, setNodeCount] = useState(() => getHighestNodeId(initialNodes));
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<
     | {
+        type: 'node';
         nodeId: string;
         position: { x: number; y: number };
+      }
+    | {
+        type: 'canvas';
+        position: { x: number; y: number };
+        flowPosition: XYPosition;
       }
     | null
   >(null);
   const nodeTypes = useMemo(() => ({ scene: SceneNodeComponent }), []);
+  const { screenToFlowPosition } = useReactFlow<SceneNodeData>();
 
   useEffect(() => {
     setNodeCount((currentCount) => {
@@ -117,7 +127,7 @@ function App() {
     []
   );
 
-  const handleAddNode = useCallback(() => {
+  const handleAddNode = useCallback((position?: XYPosition) => {
     setNodeCount((count) => {
       const nextIdNumber = count + 1;
       const nextId = `${nextIdNumber}`;
@@ -125,8 +135,8 @@ function App() {
         const unsyncedNode: SceneNode = {
           id: nextId,
           position: {
-            x: 100 + nds.length * 80,
-            y: 100 + (nds.length % 4) * 80,
+            x: position?.x ?? 100 + nds.length * 80,
+            y: position?.y ?? 100 + (nds.length % 4) * 80,
           },
           data: { title: `シーン ${nextId}`, summary: '' },
           type: 'scene',
@@ -187,11 +197,25 @@ function App() {
     (event: MouseEvent, node: SceneNode) => {
       event.preventDefault();
       setContextMenu({
+        type: 'node',
         nodeId: node.id,
         position: { x: event.clientX, y: event.clientY },
       });
     },
     []
+  );
+
+  const onPaneContextMenu = useCallback(
+    (event: MouseEvent) => {
+      event.preventDefault();
+      const flowPosition = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      setContextMenu({
+        type: 'canvas',
+        position: { x: event.clientX, y: event.clientY },
+        flowPosition,
+      });
+    },
+    [screenToFlowPosition]
   );
 
   const onEdgeContextMenu = useCallback(
@@ -259,7 +283,10 @@ function App() {
   }, [contextMenu]);
 
   const selectedContextNode = useMemo(
-    () => (contextMenu ? nodes.find((node) => node.id === contextMenu.nodeId) ?? null : null),
+    () =>
+      contextMenu?.type === 'node'
+        ? nodes.find((node) => node.id === contextMenu.nodeId) ?? null
+        : null,
     [contextMenu, nodes]
   );
 
@@ -279,7 +306,7 @@ function App() {
           <button type="button" onClick={handleLoad}>
             読み込み
           </button>
-          <button type="button" onClick={handleAddNode}>
+          <button type="button" onClick={() => handleAddNode()}>
             ノード追加
           </button>
         </div>
@@ -305,6 +332,7 @@ function App() {
             onNodeDoubleClick={onNodeDoubleClick}
             nodeTypes={nodeTypes}
             onPaneClick={closeContextMenu}
+            onPaneContextMenu={onPaneContextMenu}
           >
           <MiniMap pannable zoomable />
           <Controls />
@@ -317,7 +345,7 @@ function App() {
           </ReactFlow>
         </div>
       </div>
-      {contextMenu && selectedContextNode ? (
+      {contextMenu?.type === 'node' && selectedContextNode ? (
         <div
           className="fixed z-50 min-w-[160px] rounded border border-slate-600 bg-slate-800 py-2 text-sm text-slate-100 shadow-xl"
           style={{ top: contextMenu.position.y, left: contextMenu.position.x }}
@@ -343,7 +371,33 @@ function App() {
           </button>
         </div>
       ) : null}
+      {contextMenu?.type === 'canvas' ? (
+        <div
+          className="fixed z-50 min-w-[160px] rounded border border-slate-600 bg-slate-800 py-2 text-sm text-slate-100 shadow-xl"
+          style={{ top: contextMenu.position.y, left: contextMenu.position.x }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="block w-full px-4 py-1 text-left hover:bg-slate-700"
+            onClick={() => {
+              handleAddNode(contextMenu.flowPosition);
+              closeContextMenu();
+            }}
+          >
+            ノードを追加
+          </button>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function App() {
+  return (
+    <ReactFlowProvider>
+      <FlowEditor />
+    </ReactFlowProvider>
   );
 }
 
