@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, type ChangeEvent } from 'react';
 
 import { useSceneFlowContext } from '../SceneFlowProvider';
 
@@ -16,6 +16,15 @@ const FlowToolbar = () => {
   const handleLoadClick = () => {
     handleLoadButtonClick();
     fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const [file] = event.target.files ?? [];
+    if (file) {
+      await handleLoadFromFile(file);
+    }
+    // Allow selecting the same file multiple times by resetting the input.
+    event.target.value = '';
   };
 
   return (
@@ -40,7 +49,7 @@ const FlowToolbar = () => {
         type="file"
         accept="application/json"
         className="sr-only"
-        onChange={handleLoadFromFile}
+        onChange={handleFileChange}
       />
     </header>
   );
