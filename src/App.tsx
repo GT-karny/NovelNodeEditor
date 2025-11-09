@@ -27,6 +27,7 @@ import 'reactflow/dist/style.css';
 
 import type { SceneNode, SceneNodeData } from './types/scene';
 import SceneNodeComponent from './components/SceneNode';
+import { normalizeToSceneNode, syncSceneNodeData, syncSceneNodes } from './utils/sceneData';
 
 const STORAGE_KEY = 'novel-node-editor-flow';
 
@@ -35,42 +36,6 @@ const getHighestNodeId = (nodesList: Node[]): number =>
     const parsedId = Number.parseInt(node.id, 10);
     return Number.isNaN(parsedId) ? max : Math.max(max, parsedId);
   }, 0);
-
-const syncSceneNodeData = (node: SceneNode): SceneNode => {
-  const { onSubmit, onCancel, isEditing, isSelected, ...restData } = node.data ?? {};
-  return {
-    ...node,
-    data: {
-      ...restData,
-      label: restData?.title ?? '',
-    } as SceneNodeData,
-  };
-};
-
-const syncSceneNodes = (nodesList: SceneNode[]): SceneNode[] =>
-  nodesList.map((node) => syncSceneNodeData(node));
-
-const normalizeToSceneNode = (node: Node): SceneNode => {
-  const rawData = (node.data ?? {}) as Partial<SceneNodeData> & Record<string, unknown>;
-  const titleSource =
-    typeof rawData.title === 'string' && rawData.title.length > 0
-      ? rawData.title
-      : typeof rawData.label === 'string' && rawData.label.length > 0
-        ? rawData.label
-        : `シーン ${node.id}`;
-  const summarySource =
-    typeof rawData.summary === 'string' ? rawData.summary : '';
-
-  return syncSceneNodeData({
-    ...node,
-    data: {
-      ...rawData,
-      title: titleSource,
-      summary: summarySource,
-    },
-    type: 'scene',
-  });
-};
 
 const initialNodes: SceneNode[] = syncSceneNodes([
   {
