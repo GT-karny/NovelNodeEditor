@@ -2,11 +2,9 @@ import { type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } fr
 import {
   Edge,
   ReactFlowProvider,
-  type Node,
   type NodeMouseHandler,
   type NodeTypes,
   type OnSelectionChangeFunc,
-  type XYPosition,
   useReactFlow,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -16,11 +14,11 @@ import FlowContextMenu from './components/ContextMenu';
 import FlowSidebar from './components/FlowSidebar';
 import FlowToolbar from './components/FlowToolbar';
 import SceneNodeComponent from './components/SceneNode';
+import useContextMenu from './hooks/useContextMenu';
 import useSceneFlow from './hooks/useSceneFlow';
+import useSceneStorage from './hooks/useSceneStorage';
 import type { SceneNode, SceneNodeData } from './types/scene';
-import { normalizeToSceneNode, syncSceneNodes } from './utils/sceneData';
-
-const STORAGE_KEY = 'novel-node-editor-flow';
+import { syncSceneNodes } from './utils/sceneData';
 
 const initialNodes: SceneNode[] = syncSceneNodes([
   {
@@ -51,53 +49,22 @@ function FlowEditor() {
     removeEdge,
     applySceneSnapshot,
   } = useSceneFlow({ initialNodes, initialEdges });
-  const [contextMenu, setContextMenu] = useState<
-    | {
-        type: 'node';
-        nodeId: string;
-        position: { x: number; y: number };
-      }
-    | {
-        type: 'canvas';
-        position: { x: number; y: number };
-        flowPosition: XYPosition;
-      }
-    | null
-  >(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const nodeTypes = useMemo<NodeTypes>(() => ({ scene: SceneNodeComponent }), []);
   const { screenToFlowPosition } = useReactFlow<SceneNodeData>();
   const titleInputRef = useRef<HTMLInputElement>(null);
 
-  const handleNew = useCallback(() => {
-    applySceneSnapshot(initialNodes, initialEdges);
-    localStorage.removeItem(STORAGE_KEY);
-    setContextMenu(null);
-  }, [applySceneSnapshot]);
-
-  const handleSave = useCallback(() => {
-    const snapshot = JSON.stringify({ nodes: syncSceneNodes(nodes), edges });
-    localStorage.setItem(STORAGE_KEY, snapshot);
-  }, [nodes, edges]);
-
-  const handleLoad = useCallback(() => {
-    const snapshot = localStorage.getItem(STORAGE_KEY);
-    if (!snapshot) return;
-    try {
-      const parsed = JSON.parse(snapshot) as Partial<{ nodes: Node[]; edges: Edge[] }>;
-      const parsedNodes = Array.isArray(parsed.nodes)
-        ? parsed.nodes.map((node) => normalizeToSceneNode(node))
-        : syncSceneNodes(initialNodes);
-      const parsedEdges = Array.isArray(parsed.edges) ? parsed.edges : initialEdges;
-
-      applySceneSnapshot(parsedNodes, parsedEdges);
-      setContextMenu(null);
-    } catch (error) {
-      console.error('Failed to load flow from storage', error);
-    }
-  }, [applySceneSnapshot]);
-
-  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+  const { contextMenu, closeContextMenu, onNodeContextMenu, onPaneContextMenu } = useContextMenu({
+    screenToFlowPosition,
+  });
+  const { handleNew, handleSave, handleLoad } = useSceneStorage({
+    nodes,
+    edges,
+    initialNodes,
+    initialEdges,
+    applySceneSnapshot,
+    closeContextMenu,
+  });
 
   const handleDeleteNodeWithMenu = useCallback(
     (nodeId: string) => {
@@ -105,31 +72,6 @@ function FlowEditor() {
       closeContextMenu();
     },
     [closeContextMenu, handleDeleteNode]
-  );
-
-  const onNodeContextMenu = useCallback(
-    (event: MouseEvent, node: SceneNode) => {
-      event.preventDefault();
-      setContextMenu({
-        type: 'node',
-        nodeId: node.id,
-        position: { x: event.clientX, y: event.clientY },
-      });
-    },
-    []
-  );
-
-  const onPaneContextMenu = useCallback(
-    (event: MouseEvent) => {
-      event.preventDefault();
-      const flowPosition = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-      setContextMenu({
-        type: 'canvas',
-        position: { x: event.clientX, y: event.clientY },
-        flowPosition,
-      });
-    },
-    [screenToFlowPosition]
   );
 
   const onEdgeContextMenu = useCallback(
@@ -150,17 +92,6 @@ function FlowEditor() {
     },
     [beginEditing, closeContextMenu, selectNode]
   );
-
-  useEffect(() => {
-    if (!contextMenu) return undefined;
-    const handleGlobalClick = () => {
-      setContextMenu(null);
-    };
-    window.addEventListener('click', handleGlobalClick);
-    return () => {
-      window.removeEventListener('click', handleGlobalClick);
-    };
-  }, [contextMenu]);
 
   const selectedContextNode = useMemo(
     () =>
