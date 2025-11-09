@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
-import type { Edge, Node } from 'reactflow';
+import type { Edge } from 'reactflow';
 
 import type { SceneNode } from '../types/scene';
-import { normalizeToSceneNode, syncSceneNodes } from '../utils/sceneData';
+import { createSceneSnapshot, parseSceneSnapshot, syncSceneNodes } from '../utils/sceneData';
 
 const STORAGE_KEY = 'novel-node-editor-flow';
 
@@ -36,8 +36,8 @@ const useSceneStorage = ({
   }, [applySceneSnapshot, closeContextMenu, initialEdges, initialNodes]);
 
   const handleSave = useCallback(() => {
-    const snapshot = JSON.stringify({ nodes: syncSceneNodes(nodes), edges });
-    localStorage.setItem(STORAGE_KEY, snapshot);
+    const snapshot = createSceneSnapshot(nodes, edges);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
   }, [edges, nodes]);
 
   const handleLoad = useCallback(() => {
@@ -45,13 +45,12 @@ const useSceneStorage = ({
     if (!snapshot) return;
 
     try {
-      const parsed = JSON.parse(snapshot) as Partial<{ nodes: Node[]; edges: Edge[] }>;
-      const parsedNodes = Array.isArray(parsed.nodes)
-        ? parsed.nodes.map((node) => normalizeToSceneNode(node))
-        : syncSceneNodes(initialNodes);
-      const parsedEdges = Array.isArray(parsed.edges) ? parsed.edges : initialEdges;
-
-      applySceneSnapshot(parsedNodes, parsedEdges);
+      const parsed = parseSceneSnapshot(JSON.parse(snapshot));
+      if (parsed) {
+        applySceneSnapshot(parsed.nodes, parsed.edges);
+      } else {
+        applySceneSnapshot(syncSceneNodes(initialNodes), initialEdges);
+      }
       closeContextMenu();
     } catch (error) {
       console.error('Failed to load flow from storage', error);
