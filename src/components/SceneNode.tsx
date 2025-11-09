@@ -53,8 +53,9 @@ const SceneNode = ({ id, data }: NodeProps<SceneNodeData>) => {
         return;
       }
 
-      for (let index = 0; index < line.length; index += MAX_LINE_LENGTH) {
-        wrappedLines.push(line.slice(index, index + MAX_LINE_LENGTH));
+      const characters = Array.from(line);
+      for (let index = 0; index < characters.length; index += MAX_LINE_LENGTH) {
+        wrappedLines.push(characters.slice(index, index + MAX_LINE_LENGTH).join(''));
       }
     });
 
