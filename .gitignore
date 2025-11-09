@@ -42,6 +42,8 @@ Thumbs.db
 .cache/
 vite.config.ts.timestamp*
 .vite/
+vite.config.js
+vite.config.d.ts
 coverage/
 *.log
 *.pid
