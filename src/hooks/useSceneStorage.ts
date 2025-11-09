@@ -2,11 +2,8 @@ import { useCallback } from 'react';
 import type { Edge } from 'reactflow';
 
 import type { SceneNode } from '../types/scene';
-import {
-  SCENE_SNAPSHOT_DOWNLOAD_FILENAME,
-  parseSnapshotFile,
-  saveSnapshotToBlob,
-} from '../features/scene/storage/sceneStorageService';
+import type { SceneSnapshot } from '../types/storage';
+import { createSceneSnapshot, parseSceneSnapshot } from '../features/scene/domain';
 
 const STORAGE_KEY = 'novel-node-editor-flow';
 

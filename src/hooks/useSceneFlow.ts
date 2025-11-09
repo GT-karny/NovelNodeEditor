@@ -1,8 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useReducer } from 'react';
 import {
-  addEdge,
-  applyEdgeChanges,
-  applyNodeChanges,
   type Connection,
   type Edge,
   type EdgeChange,
@@ -11,7 +8,7 @@ import {
 } from 'reactflow';
 
 import type { SceneNode, SceneNodeData } from '../types/scene';
-import { syncSceneNodeData, syncSceneNodes } from '../utils/sceneData';
+import { syncSceneNodeData, syncSceneNodes } from '../features/scene/domain';
 
 const getHighestNodeId = (nodesList: SceneNode[]): number =>
   nodesList.reduce((max, node) => {
@@ -52,117 +49,67 @@ interface UseSceneFlowReturn extends SceneFlowHandlers {
 }
 
 const useSceneFlow = ({ initialNodes, initialEdges }: UseSceneFlowParams): UseSceneFlowReturn => {
-  const [nodes, setNodes] = useState<SceneNode[]>(() => syncSceneNodes(initialNodes));
-  const [edges, setEdges] = useState<Edge[]>(initialEdges);
-  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [state, dispatch] = useReducer(
+    sceneFlowReducer,
+    { nodes: initialNodes, edges: initialEdges },
+    initializeSceneFlowState
+  );
 
-  const nextNodeIdRef = useRef<number>(getNextNodeIdValue(syncSceneNodes(initialNodes)));
+  const nodes = selectNodes(state);
+  const edges = selectEdges(state);
+  const selectedNodeId = selectSelectedNodeId(state);
+  const editingNodeId = selectEditingNodeId(state);
 
-  useEffect(() => {
-    if (!selectedNodeId) return;
-    const exists = nodes.some((node) => node.id === selectedNodeId);
-    if (!exists) {
-      setSelectedNodeId(null);
-    }
-  }, [nodes, selectedNodeId]);
-
-  useEffect(() => {
-    if (!editingNodeId) return;
-    const exists = nodes.some((node) => node.id === editingNodeId);
-    if (!exists) {
-      setEditingNodeId(null);
-    }
-  }, [nodes, editingNodeId]);
+  const selectedNode = useMemo(
+    () => selectSelectedNode(nodes, selectedNodeId),
+    [nodes, selectedNodeId]
+  );
 
   const onNodesChange = useCallback(
-    (changes: NodeChange[]) =>
-      setNodes((current) => syncSceneNodes(applyNodeChanges<SceneNodeData>(changes, current))),
+    (changes: NodeChange[]) => dispatch({ type: 'NODE_CHANGES_APPLIED', changes }),
     []
   );
 
   const onEdgesChange = useCallback(
-    (changes: EdgeChange[]) => setEdges((current) => applyEdgeChanges(changes, current)),
+    (changes: EdgeChange[]) => dispatch({ type: 'EDGE_CHANGES_APPLIED', changes }),
     []
   );
 
   const onConnect = useCallback(
-    (connection: Connection) =>
-      setEdges((current) => addEdge({ ...connection, animated: true }, current)),
+    (connection: Connection) => dispatch({ type: 'EDGE_CONNECTED', connection }),
     []
   );
 
   const handleAddNode = useCallback(
-    (position?: XYPosition) => {
-      const nextIdNumber = nextNodeIdRef.current;
-      nextNodeIdRef.current += 1;
-      const nextId = `${nextIdNumber}`;
-      setNodes((currentNodes) => {
-        const unsyncedNode: SceneNode = {
-          id: nextId,
-          position: {
-            x: position?.x ?? 100 + currentNodes.length * 80,
-            y: position?.y ?? 100 + (currentNodes.length % 4) * 80,
-          },
-          data: { title: `シーン ${nextId}`, summary: '' },
-          type: 'scene',
-        };
-        return [...currentNodes, syncSceneNodeData(unsyncedNode)];
-      });
-    },
+    (position?: XYPosition) => dispatch({ type: 'NODE_ADDED', position }),
     []
   );
 
-  const handleDeleteNode = useCallback((nodeId: string) => {
-    setNodes((current) => current.filter((node) => node.id !== nodeId));
-    setEdges((current) => current.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
-    setEditingNodeId((current) => (current === nodeId ? null : current));
-    setSelectedNodeId((current) => (current === nodeId ? null : current));
-  }, []);
+  const handleDeleteNode = useCallback(
+    (nodeId: string) => dispatch({ type: 'NODE_DELETED', nodeId }),
+    []
+  );
 
-  const removeEdge = useCallback((edgeId: string) => {
-    setEdges((current) => current.filter((edge) => edge.id !== edgeId));
-  }, []);
+  const removeEdge = useCallback(
+    (edgeId: string) => dispatch({ type: 'EDGE_REMOVED', edgeId }),
+    []
+  );
 
-  const handleSubmitTitle = useCallback((nodeId: string, nextTitle: string) => {
-    setNodes((current) =>
-      current.map((node) =>
-        node.id === nodeId
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                title: nextTitle,
-                label: nextTitle,
-              },
-            }
-          : node
-      )
-    );
-    setEditingNodeId(null);
-  }, []);
+  const handleSubmitTitle = useCallback(
+    (nodeId: string, nextTitle: string) =>
+      dispatch({ type: 'NODE_TITLE_SUBMITTED', nodeId, nextTitle }),
+    []
+  );
 
-  const handleCancelEdit = useCallback(() => {
-    setEditingNodeId(null);
-  }, []);
+  const handleCancelEdit = useCallback(
+    () => dispatch({ type: 'CANCEL_EDITING' }),
+    []
+  );
 
   const handleTitleChange = useCallback(
     (nextTitle: string) => {
       if (!selectedNodeId) return;
-      setNodes((current) =>
-        current.map((node) =>
-          node.id === selectedNodeId
-            ? {
-                ...node,
-                data: {
-                  ...node.data,
-                  title: nextTitle,
-                  label: nextTitle,
-                },
-              }
-            : node
-        )
-      );
+      dispatch({ type: 'NODE_TITLE_CHANGED', nodeId: selectedNodeId, nextTitle });
     },
     [selectedNodeId]
   );
@@ -170,59 +117,34 @@ const useSceneFlow = ({ initialNodes, initialEdges }: UseSceneFlowParams): UseSc
   const handleSummaryChange = useCallback(
     (nextSummary: string) => {
       if (!selectedNodeId) return;
-      setNodes((current) =>
-        current.map((node) =>
-          node.id === selectedNodeId
-            ? {
-                ...node,
-                data: {
-                  ...node.data,
-                  summary: nextSummary,
-                },
-              }
-            : node
-        )
-      );
+      dispatch({ type: 'NODE_SUMMARY_CHANGED', nodeId: selectedNodeId, nextSummary });
     },
     [selectedNodeId]
   );
 
-  const selectNode = useCallback((nodeId: string | null) => {
-    setSelectedNodeId(nodeId);
-  }, []);
+  const selectNode = useCallback(
+    (nodeId: string | null) => dispatch({ type: 'SELECT_NODE', nodeId }),
+    []
+  );
 
-  const beginEditing = useCallback((nodeId: string) => {
-    setEditingNodeId(nodeId);
-  }, []);
+  const beginEditing = useCallback(
+    (nodeId: string) => dispatch({ type: 'BEGIN_EDITING', nodeId }),
+    []
+  );
 
-  const applySceneSnapshot = useCallback((nextNodes: SceneNode[], nextEdges: Edge[]) => {
-    const sanitizedNodes = syncSceneNodes(nextNodes);
-    setNodes(sanitizedNodes);
-    setEdges(nextEdges);
-    setSelectedNodeId(null);
-    setEditingNodeId(null);
-    nextNodeIdRef.current = getNextNodeIdValue(sanitizedNodes);
-  }, []);
+  const applySceneSnapshot = useCallback(
+    (nextNodes: SceneNode[], nextEdges: Edge[]) =>
+      dispatch({ type: 'APPLY_SCENE_SNAPSHOT', nodes: nextNodes, edges: nextEdges }),
+    []
+  );
 
   const flowNodes = useMemo(
     () =>
-      syncSceneNodes(nodes).map((node) => ({
-        ...node,
-        type: 'scene',
-        data: {
-          ...node.data,
-          isEditing: node.id === editingNodeId,
-          isSelected: node.id === selectedNodeId,
-          onSubmit: handleSubmitTitle,
-          onCancel: handleCancelEdit,
-        },
-      })),
-    [nodes, editingNodeId, selectedNodeId, handleSubmitTitle, handleCancelEdit]
-  );
-
-  const selectedNode = useMemo(
-    () => (selectedNodeId ? nodes.find((node) => node.id === selectedNodeId) ?? null : null),
-    [nodes, selectedNodeId]
+      selectFlowNodes(nodes, selectedNodeId, editingNodeId, {
+        onSubmit: handleSubmitTitle,
+        onCancel: handleCancelEdit,
+      }),
+    [nodes, selectedNodeId, editingNodeId, handleSubmitTitle, handleCancelEdit]
   );
 
   return {
