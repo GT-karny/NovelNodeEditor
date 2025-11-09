@@ -1,182 +1,239 @@
-import { type MouseEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import ReactFlow, {
-  addEdge,
-  applyEdgeChanges,
-  applyNodeChanges,
-  Background,
-  Connection,
-  Controls,
+import { type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
   Edge,
-  EdgeChange,
-  MiniMap,
-  Node,
-  NodeChange,
-  Panel,
+  ReactFlowProvider,
+  type NodeMouseHandler,
+  type NodeTypes,
+  type OnSelectionChangeFunc,
+  useReactFlow,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-const STORAGE_KEY = 'novel-node-editor-flow';
+import FlowCanvas from './components/FlowCanvas';
+import FlowContextMenu from './components/ContextMenu';
+import FlowSidebar from './components/FlowSidebar';
+import FlowToolbar from './components/FlowToolbar';
+import SceneNodeComponent from './components/SceneNode';
+import useContextMenu from './hooks/useContextMenu';
+import useSceneFlow from './hooks/useSceneFlow';
+import useSceneStorage from './hooks/useSceneStorage';
+import type { SceneNode, SceneNodeData } from './types/scene';
+import { syncSceneNodes } from './utils/sceneData';
 
-const getHighestNodeId = (nodesList: Node[]): number =>
-  nodesList.reduce((max, node) => {
-    const parsedId = Number.parseInt(node.id, 10);
-    return Number.isNaN(parsedId) ? max : Math.max(max, parsedId);
-  }, 0);
-
-const initialNodes: Node[] = [
+const initialNodes: SceneNode[] = syncSceneNodes([
   {
     id: '1',
     position: { x: 250, y: 50 },
-    data: { label: 'はじめのノード' },
-    type: 'default',
+    data: { title: 'はじめのノード', summary: '' },
+    type: 'scene',
   },
-];
+]);
 
 const initialEdges: Edge[] = [];
 
-function App() {
-  const [nodes, setNodes] = useState<Node[]>(initialNodes);
-  const [edges, setEdges] = useState<Edge[]>(initialEdges);
-  const [nodeCount, setNodeCount] = useState(() => getHighestNodeId(initialNodes));
+function FlowEditor() {
+  const {
+    nodes,
+    edges,
+    flowNodes,
+    selectedNode,
+    onNodesChange,
+    onEdgesChange,
+    onConnect,
+    handleAddNode,
+    handleDeleteNode,
+    handleTitleChange: updateSelectedNodeTitle,
+    handleSummaryChange: updateSelectedNodeSummary,
+    selectNode,
+    beginEditing,
+    removeEdge,
+    applySceneSnapshot,
+  } = useSceneFlow({ initialNodes, initialEdges });
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const nodeTypes = useMemo<NodeTypes>(() => ({ scene: SceneNodeComponent }), []);
+  const { screenToFlowPosition } = useReactFlow<SceneNodeData>();
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    setNodeCount((currentCount) => {
-      const highestId = getHighestNodeId(nodes);
-      return highestId > currentCount ? highestId : currentCount;
-    });
-  }, [nodes]);
+  const { contextMenu, closeContextMenu, onNodeContextMenu, onPaneContextMenu } = useContextMenu({
+    screenToFlowPosition,
+  });
+  const { handleNew, handleSaveToFile, handleLoadFromFile } = useSceneStorage({
+    nodes,
+    edges,
+    initialNodes,
+    initialEdges,
+    applySceneSnapshot,
+    closeContextMenu,
+  });
 
-  const onNodesChange = useCallback(
-    (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
-    []
-  );
+  const handleLoadButtonClick = useCallback(() => {
+    closeContextMenu();
+  }, [closeContextMenu]);
 
-  const onEdgesChange = useCallback(
-    (changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)),
-    []
-  );
-
-  const onConnect = useCallback(
-    (connection: Connection) =>
-      setEdges((eds) => addEdge({ ...connection, animated: true }, eds)),
-    []
-  );
-
-  const handleAddNode = useCallback(() => {
-    setNodeCount((count) => {
-      const nextIdNumber = count + 1;
-      const nextId = `${nextIdNumber}`;
-      setNodes((nds) => {
-        const newNode: Node = {
-          id: nextId,
-          position: {
-            x: 100 + nds.length * 80,
-            y: 100 + (nds.length % 4) * 80,
-          },
-          data: { label: `シーン ${nextId}` },
-        };
-        return [...nds, newNode];
-      });
-      return nextIdNumber;
-    });
-  }, []);
-
-  const handleNew = useCallback(() => {
-    setNodes(initialNodes);
-    setEdges(initialEdges);
-    setNodeCount(getHighestNodeId(initialNodes));
-    localStorage.removeItem(STORAGE_KEY);
-  }, []);
-
-  const handleSave = useCallback(() => {
-    const snapshot = JSON.stringify({ nodes, edges });
-    localStorage.setItem(STORAGE_KEY, snapshot);
-  }, [nodes, edges]);
-
-  const handleLoad = useCallback(() => {
-    const snapshot = localStorage.getItem(STORAGE_KEY);
-    if (!snapshot) return;
-    try {
-      const parsed: { nodes: Node[]; edges: Edge[] } = JSON.parse(snapshot);
-      setNodes(parsed.nodes);
-      setEdges(parsed.edges);
-      setNodeCount(getHighestNodeId(parsed.nodes));
-    } catch (error) {
-      console.error('Failed to load flow from storage', error);
-    }
-  }, []);
-
-  const onNodeContextMenu = useCallback(
-    (event: MouseEvent, node: Node) => {
-      event.preventDefault();
-      if (window.confirm(`ノード "${node.data?.label ?? node.id}" を削除しますか？`)) {
-        setNodes((nds) => nds.filter((n) => n.id !== node.id));
-        setEdges((eds) => eds.filter((edge) => edge.source !== node.id && edge.target !== node.id));
-      }
+  const handleDeleteNodeWithMenu = useCallback(
+    (nodeId: string) => {
+      handleDeleteNode(nodeId);
+      closeContextMenu();
     },
-    []
+    [closeContextMenu, handleDeleteNode]
   );
 
   const onEdgeContextMenu = useCallback(
     (event: MouseEvent, edge: Edge) => {
       event.preventDefault();
       if (window.confirm('この接続線を削除しますか？')) {
-        setEdges((eds) => eds.filter((e) => e.id !== edge.id));
+        removeEdge(edge.id);
       }
     },
-    []
+    [removeEdge]
+  );
+
+  const onNodeDoubleClick = useCallback(
+    (_event: MouseEvent, node: SceneNode) => {
+      beginEditing(node.id);
+      selectNode(node.id);
+      closeContextMenu();
+    },
+    [beginEditing, closeContextMenu, selectNode]
+  );
+
+  const selectedContextNode = useMemo(
+    () =>
+      contextMenu?.type === 'node'
+        ? nodes.find((node) => node.id === contextMenu.nodeId) ?? null
+        : null,
+    [contextMenu, nodes]
   );
 
   const proOptions = useMemo(() => ({ hideAttribution: true }), []);
 
+  const handleTitleInputChange = useCallback(
+    (nextTitle: string) => {
+      updateSelectedNodeTitle(nextTitle);
+    },
+    [updateSelectedNodeTitle]
+  );
+
+  const handleSummaryInputChange = useCallback(
+    (nextSummary: string) => {
+      updateSelectedNodeSummary(nextSummary);
+    },
+    [updateSelectedNodeSummary]
+  );
+
+  useEffect(() => {
+    if (!selectedNode || !isSidebarOpen) return undefined;
+    const frame = requestAnimationFrame(() => {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [selectedNode?.id, isSidebarOpen]);
+
+  const handlePaneClick = useCallback(() => {
+    closeContextMenu();
+    selectNode(null);
+  }, [closeContextMenu, selectNode]);
+
+  const handleNodeClick = useCallback<NodeMouseHandler>(
+    (_event, node) => {
+      selectNode(node.id);
+      closeContextMenu();
+    },
+    [closeContextMenu, selectNode]
+  );
+
+  const handleSelectionChange = useCallback<OnSelectionChangeFunc>(
+    ({ nodes: selectedNodes }) => {
+      const primary = selectedNodes[0];
+      selectNode(primary ? primary.id : null);
+    },
+    [selectNode]
+  );
+
+  const contextMenuConfig = useMemo(() => {
+    if (contextMenu?.type === 'node' && selectedContextNode) {
+      return {
+        type: 'node' as const,
+        position: contextMenu.position,
+        title: selectedContextNode.data.title,
+        onOpen: () => {
+          beginEditing(selectedContextNode.id);
+          closeContextMenu();
+        },
+        onDelete: () => handleDeleteNodeWithMenu(selectedContextNode.id),
+      };
+    }
+
+    if (contextMenu?.type === 'canvas') {
+      return {
+        type: 'canvas' as const,
+        position: contextMenu.position,
+        onAddNode: () => {
+          handleAddNode(contextMenu.flowPosition);
+          closeContextMenu();
+        },
+      };
+    }
+
+    return null;
+  }, [
+    beginEditing,
+    closeContextMenu,
+    contextMenu,
+    handleAddNode,
+    handleDeleteNodeWithMenu,
+    selectedContextNode,
+  ]);
+
   return (
     <div className="flex min-h-screen flex-col gap-4 p-4 text-slate-100">
-      <header className="flex flex-wrap items-center gap-2">
-        <h1 className="text-lg font-semibold">Novel Node Editor</h1>
-        <div className="ml-auto flex flex-wrap gap-2">
-          <button type="button" onClick={handleNew}>
-            新規
-          </button>
-          <button type="button" onClick={handleSave}>
-            保存
-          </button>
-          <button type="button" onClick={handleLoad}>
-            読み込み
-          </button>
-          <button type="button" onClick={handleAddNode}>
-            ノード追加
-          </button>
-        </div>
-      </header>
-      <div
-        className="flex-1 overflow-hidden rounded-lg border border-slate-700 bg-slate-800"
-        style={{ height: '600px' }}
-      >
-        <div style={{ width: '100%', height: '100%' }}>
-          <ReactFlow
-            style={{ width: '100%', height: '100%', minHeight: 600 }}
-          fitView
+      <FlowToolbar
+        onNew={handleNew}
+        onSave={handleSaveToFile}
+        onLoad={handleLoadButtonClick}
+        onFileSelected={handleLoadFromFile}
+        fileInputRef={fileInputRef}
+        onAddNode={() => handleAddNode()}
+      />
+      <div className="flex flex-1 gap-4">
+        <FlowCanvas
           proOptions={proOptions}
-          nodes={nodes}
+          nodes={flowNodes}
           edges={edges}
+          nodeTypes={nodeTypes}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onPaneClick={handlePaneClick}
+          onPaneContextMenu={onPaneContextMenu}
           onNodeContextMenu={onNodeContextMenu}
           onEdgeContextMenu={onEdgeContextMenu}
-        >
-          <MiniMap pannable zoomable />
-          <Controls />
-          <Background gap={24} size={2} color="#1f2937" />
-          <Panel position="top-left">
-            <p className="text-xs text-slate-300">
-              ノードをドラッグで移動し、接続ハンドルをドラッグして線を作成できます。
-            </p>
-          </Panel>
-          </ReactFlow>
-        </div>
+          onNodeDoubleClick={onNodeDoubleClick}
+          onNodeClick={handleNodeClick}
+          onSelectionChange={handleSelectionChange}
+          isSidebarOpen={isSidebarOpen}
+          onToggleSidebar={() => setIsSidebarOpen((value) => !value)}
+        />
+        <FlowSidebar
+          isSidebarOpen={isSidebarOpen}
+          selectedNode={selectedNode}
+          titleInputRef={titleInputRef}
+          onTitleChange={handleTitleInputChange}
+          onSummaryChange={handleSummaryInputChange}
+        />
       </div>
+      <FlowContextMenu menu={contextMenuConfig} />
     </div>
+  );
+}
+
+function App() {
+  return (
+    <ReactFlowProvider>
+      <FlowEditor />
+    </ReactFlowProvider>
   );
 }
 
