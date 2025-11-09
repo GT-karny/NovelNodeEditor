@@ -21,7 +21,7 @@ import {
   useSceneFlowContext,
 } from './features/scene/context/SceneFlowProvider';
 import type { SceneNode, SceneNodeData } from './types/scene';
-import { syncSceneNodes } from './utils/sceneData';
+import { syncSceneNodes } from './features/scene/domain';
 
 const initialNodes: SceneNode[] = syncSceneNodes([
   {

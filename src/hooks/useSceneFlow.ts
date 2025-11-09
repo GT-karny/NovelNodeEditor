@@ -7,19 +7,16 @@ import {
   type XYPosition,
 } from 'reactflow';
 
-import type { SceneNode } from '../types/scene';
-import {
-  initializeSceneFlowState,
-  sceneFlowReducer,
-} from '../features/scene/state/sceneFlowReducer';
-import {
-  selectEdges,
-  selectEditingNodeId,
-  selectFlowNodes,
-  selectNodes,
-  selectSelectedNode,
-  selectSelectedNodeId,
-} from '../features/scene/state/sceneFlowSelectors';
+import type { SceneNode, SceneNodeData } from '../types/scene';
+import { syncSceneNodeData, syncSceneNodes } from '../features/scene/domain';
+
+const getHighestNodeId = (nodesList: SceneNode[]): number =>
+  nodesList.reduce((max, node) => {
+    const parsedId = Number.parseInt(node.id, 10);
+    return Number.isNaN(parsedId) ? max : Math.max(max, parsedId);
+  }, 0);
+
+const getNextNodeIdValue = (nodesList: SceneNode[]): number => getHighestNodeId(nodesList) + 1;
 
 interface UseSceneFlowParams {
   initialNodes: SceneNode[];
