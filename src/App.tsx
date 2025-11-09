@@ -148,8 +148,13 @@ function App() {
           </button>
         </div>
       </header>
-      <div className="h-[600px] flex-1 overflow-hidden rounded-lg border border-slate-700 bg-slate-800">
-        <ReactFlow
+      <div
+        className="flex-1 overflow-hidden rounded-lg border border-slate-700 bg-slate-800"
+        style={{ height: '600px' }}
+      >
+        <div style={{ width: '100%', height: '100%' }}>
+          <ReactFlow
+            style={{ width: '100%', height: '100%', minHeight: 600 }}
           fitView
           proOptions={proOptions}
           nodes={nodes}
@@ -168,7 +173,8 @@ function App() {
               ノードをドラッグで移動し、接続ハンドルをドラッグして線を作成できます。
             </p>
           </Panel>
-        </ReactFlow>
+          </ReactFlow>
+        </div>
       </div>
     </div>
   );
