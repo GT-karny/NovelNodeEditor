@@ -1,0 +1,76 @@
+# ==========================
+# Node / Package Management
+# ==========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# ==========================
+# Build Outputs
+# ==========================
+dist/
+build/
+*.tsbuildinfo
+
+# ==========================
+# Environment / Config
+# ==========================
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ==========================
+# Editor / OS / IDE
+# ==========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+
+# ==========================
+# TypeScript / Cache
+# ==========================
+.cache/
+vite.config.ts.timestamp*
+.vite/
+coverage/
+*.log
+*.pid
+*.seed
+*.tgz
+*.tmp
+*.tsbuildinfo
+
+# ==========================
+# Local Data (React Flow 保存など)
+# ==========================
+# ローカルストレージに保存するJSONファイルなどを出力する場合
+localdata/
+saved_graphs/
+*.local.json
+
+# ==========================
+# Miscellaneous
+# ==========================
+# macOSやWindowsのシステムファイル
+ehthumbs.db
+Desktop.ini
+
+# Tailwind / PostCSS の一時ファイル
+*.css.map
+
+# ==========================
+# Optional: Build Artifacts for Deployment
+# ==========================
+# 本番用に別ブランチで生成する場合
+/.vercel/
+.vercel_build_output/
